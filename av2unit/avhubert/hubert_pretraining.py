@@ -12,7 +12,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from dataclasses import dataclass, field
-from fairseq import metrics, search
+from fairseq.logging import metrics
+from fairseq import search
 from fairseq.data import Dictionary, encoders
 from fairseq.dataclass.configs import FairseqDataclass
 from fairseq.tasks import register_task
@@ -23,12 +24,9 @@ from argparse import Namespace
 
 DBG=True if len(sys.argv) == 1 else False
 
-if DBG:
-    from hubert_dataset import AVHubertDataset
-    # from sequence_generator import SequenceGenerator
-else:
-    from .hubert_dataset import AVHubertDataset
-    # from .sequence_generator import SequenceGenerator
+# Consistent absolute import
+from av2unit.avhubert.hubert_dataset import AVHubertDataset
+# from av2unit.avhubert.sequence_generator import SequenceGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +238,13 @@ class AVHubertPretrainingTask(FairseqTask):
         ]
         image_aug = self.cfg.image_aug if split == 'train' else False
         noise_fn, noise_snr = f"{self.cfg.noise_wav}/{split}.tsv" if self.cfg.noise_wav is not None else None, eval(self.cfg.noise_snr)
+        
+        # --- Fix for missing noise files ---
+        if noise_fn is not None and not os.path.exists(noise_fn):
+            logger.warning(f"Noise manifest not found at {noise_fn}. Disabling noise augmentation.")
+            noise_fn = None
+        # -----------------------------------
+        
         noise_num = self.cfg.noise_num # 
         self.datasets[split] = AVHubertDataset(
             manifest,

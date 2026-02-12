@@ -2,6 +2,7 @@ import os
 import soundfile as sf
 import cv2
 import ffmpeg
+import imageio_ffmpeg
 
 def process_units(units, reduce=False):
     if not reduce:
@@ -15,8 +16,19 @@ def save_unit(unit, unit_path):
     with open(unit_path, "w") as f:
         f.write(unit)
 
+import torch
+import numpy as np
+
 def save_audio(audio, audio_path, sampling_rate=16000):
-    os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+    if os.path.dirname(audio_path):
+        os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+    
+    if torch.is_tensor(audio):
+        audio = audio.detach().cpu().numpy()
+        
+    if isinstance(audio, np.ndarray) and audio.dtype == np.float16:
+         audio = audio.astype(np.float32)
+         
     sf.write(
         audio_path,
         audio,
@@ -25,17 +37,23 @@ def save_audio(audio, audio_path, sampling_rate=16000):
 
 def extract_audio_from_video(video_path, save_audio_path, sampling_rate=16000):
     os.makedirs(os.path.dirname(save_audio_path), exist_ok=True)
-    (
-        ffmpeg.input(video_path)
-        .output(
-            save_audio_path,
-            acodec="pcm_s16le",
-            ac=1,
-            ar=sampling_rate,
-            loglevel="panic",
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+    try:
+        (
+            ffmpeg.input(video_path)
+            .output(
+                save_audio_path,
+                acodec="pcm_s16le",
+                ac=1,
+                ar=sampling_rate,
+                loglevel="error",
+            )
+            .run(overwrite_output=True, cmd=ffmpeg_exe, capture_stdout=True, capture_stderr=True)
         )
-        .run(overwrite_output=True)
-    )
+    except ffmpeg.Error as e:
+        print(f"FFmpeg error: {e.stderr.decode('utf8')}")
+        raise e
 
 def save_video(audio, video, full_video, bbox, save_video_path, sampling_rate=16000, fps=25, vcodec="libx264"):
     os.makedirs(os.path.dirname(save_video_path), exist_ok=True)
@@ -59,7 +77,8 @@ def save_video(audio, video, full_video, bbox, save_video_path, sampling_rate=16
         out.write(f)
 
     out.release()
-
+    
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
     ffmpeg.output(
         ffmpeg.input(temp_video_path),
         ffmpeg.input(temp_audio_path),
@@ -67,7 +86,7 @@ def save_video(audio, video, full_video, bbox, save_video_path, sampling_rate=16
         vcodec="libx264",
         acodec="aac",
         loglevel="panic",
-    ).run(overwrite_output=True)
+    ).run(overwrite_output=True, cmd=ffmpeg_exe)
 
     os.remove(temp_audio_path)
     os.remove(temp_video_path)

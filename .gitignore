@@ -1,0 +1,29 @@
+
+# Credentials and Secrets
+client_secrets.json
+google_credentials.json
+token.json
+token.pickle
+*.json
+!package.json
+
+# Environment
+venv/
+.env
+
+# Data and Checkpoints
+checkpoints/
+data/
+videos_mestrado/
+synthetic_targets/
+temp_synthetic_gen/
+test_videos_result/
+test_videos_tempo/
+results/
+samples/
+
+# Python
+__pycache__/
+*.pyc
+*.pt
+*.pth

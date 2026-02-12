@@ -28,29 +28,13 @@ from copy import deepcopy
 
 DBG=True if len(sys.argv) == 1 else False
 
-if DBG:
-    from hubert_pretraining import (
-        AVHubertPretrainingConfig,
-        AVHubertPretrainingTask,
-    )
-    from resnet import ResEncoder
-    logging.basicConfig(
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        level=os.environ.get("LOGLEVEL", "INFO").upper(),
-        stream=sys.stdout,
-    )
-    from utils import compute_mask_indices
-    # from decoder import TransformerDecoder
-
-else:
-    from .hubert_pretraining import (
-        AVHubertPretrainingConfig,
-        AVHubertPretrainingTask,
-    )
-    from .resnet import ResEncoder
-    from .utils import compute_mask_indices
-    # from .decoder import TransformerDecoder
+# Consistent imports regardless of DBG mode
+from av2unit.avhubert.hubert_pretraining import (
+    AVHubertPretrainingConfig,
+    AVHubertPretrainingTask,
+)
+from av2unit.avhubert.resnet import ResEncoder
+from av2unit.avhubert.utils import compute_mask_indices
 
 from omegaconf import II
 

@@ -1,0 +1,32 @@
+-------------------------------------------------
+pt-pt
+
+talks: 853
+
+set: train
+ talks: 820
+ sentences: 90244
+ words src: 1433073
+ words tgt: 1433073
+ time: 642853.91s == 178h34m14s
+
+set: valid
+ talks: 9
+ sentences: 1013
+ words src: 14457
+ words tgt: 14457
+ time: 6522.52s == 1h48m43s
+
+set: test
+ talks: 13
+ sentences: 1020
+ words src: 17626
+ words tgt: 17626
+ time: 7648.38s == 2h7m28s
+
+set: iwslt2021
+ talks: 11
+ sentences: 1022
+ words src: 15498
+ words tgt: 15498
+ time: 7290.22s == 2h1m30s

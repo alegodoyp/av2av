@@ -22,16 +22,14 @@ from scipy.io import wavfile
 
 DBG=True if len(sys.argv) == 1 else False
 
-if DBG:
-    import utils as custom_utils
-    logging.basicConfig(
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        level=os.environ.get("LOGLEVEL", "DEBUG").upper(),
-        stream=sys.stdout,
-    )
-else:
-    from . import utils as custom_utils
+# Consistent absolute import
+from av2unit.avhubert import utils as custom_utils
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    level=os.environ.get("LOGLEVEL", "INFO").upper(),
+    stream=sys.stdout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -278,8 +276,21 @@ class AVHubertDataset(FairseqDataset):
         else:
             video_feats = None
         if 'audio' in self.modalities:
-            audio_fn = audio_fn.split(':')[0]
-            sample_rate, wav_data = wavfile.read(audio_fn)
+            # audio_fn = audio_fn.split(':')[0]
+            # Fix for Windows: Split on last colon to remove audio_id, preserving drive letter (C:...)
+            audio_fn = audio_fn.rsplit(':', 1)[0]
+            if not os.path.exists(audio_fn):
+                print(f"ERROR: Audio file not found: {audio_fn}")
+                return None, None
+            try:
+                sample_rate, wav_data = wavfile.read(audio_fn)
+                if len(wav_data) == 0:
+                    print(f"ERROR: Empty audio file: {audio_fn}")
+                    return None, None
+            except Exception as e:
+                print(f"ERROR processing audio {audio_fn}: {e}")
+                return None, None
+                
             assert sample_rate == 16_000 and len(wav_data.shape) == 1
             if np.random.rand() < self.noise_prob:
                 wav_data = self.add_noise(wav_data)

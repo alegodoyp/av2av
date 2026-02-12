@@ -146,8 +146,8 @@ class SpeakerEncoder(nn.Module):
         Note: this not a log-mel spectrogram.
         """
         frames = librosa.feature.melspectrogram(
-            wav,
-            self.cfg.sampling_rate,
+            y=wav,
+            sr=self.cfg.sampling_rate,
             n_fft=int(self.cfg.sampling_rate * self.cfg.mel_window_length / 1000),
             hop_length=int(self.cfg.sampling_rate * self.cfg.mel_window_step / 1000),
             n_mels=self.cfg.mel_n_channels

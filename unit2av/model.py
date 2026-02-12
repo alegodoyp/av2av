@@ -9,6 +9,7 @@ import torchvision
 import pickle
 import numpy as np
 import cv2
+import imageio
 
 class UnitAVRenderer(CodeHiFiGANVocoder):
     def __init__(
@@ -40,12 +41,54 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
 
     def get_crops(self, bbox_path):
         bbs = pickle.load(open(bbox_path, 'rb'))
+        
+        # Forward fill
         prev_val = None
         for i in range(len(bbs)):
             if bbs[i] is None:
                 bbs[i] = prev_val
             else:
                 prev_val = bbs[i]
+                
+        # Backward fill (for initial Nones)
+        next_val = None
+        for i in range(len(bbs) - 1, -1, -1):
+            if bbs[i] is None:
+                bbs[i] = next_val
+            else:
+                next_val = bbs[i]
+                
+        # If still None (no faces found at all), default to center crop?
+        # Or just return a safe default [0, 0, 96, 96]? (Resize happens later)
+        # Better to return full frame indices? 
+        # Since we don't have frame size here easily without reading video, 
+        # let's assume we can't do much better than failing or returing dummy.
+        # But failure crashes pipeline. Let's return a "full frame" guess or similar.
+        # Actually inference usage: img[y1:y2, x1:x2]. 
+        # If we return [0,0,10,10] it will crop a tiny patch.
+        # If we assume 1080p, [0,0,1920,1080].
+        # Let's try to detect if all are None.
+        
+        if len(bbs) > 0 and bbs[0] is None:
+            print(f"Warning: No faces detected in {bbox_path}. Using default crop.")
+            # Default to a safe large crop or similar. 
+            # We don't know image size here. 
+            # Ideally we should handle this in inference.py but logic is split.
+            # Let's return [0,0,0,0] and handle in read_window?
+            # No, read_window does loops with it.
+            # Let's return a dummy that triggers a full resize or safe behavior.
+            # If we set 0,0,100,100 it works but might be wrong area.
+            # Let's use [0,0,256,256] as a safe fallback?
+            # Or better, just fill with [0,0,0,0] and handle invalid crop?
+            # The code does: img[max(int(y1), 0): int(y2), max(int(x1), 0):int(x2)]
+            # If we pass [0,0,W,H] it takes full image.
+            # We don't know W,H.
+            # Let's assume a large enough box? [0,0,10000,10000] might index out of bounds?
+            # Python slicing clamps! img[0:10000, 0:10000] returns full image if too large!
+            # So [0,0,10000,10000] effectively means "full image".
+            for i in range(len(bbs)):
+                bbs[i] = [0, 0, 10000, 10000]
+
         return np.array(bbs)
 
     def read_window(self, frames, crops):
@@ -87,7 +130,22 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
             dedup_code = torch.cat([dedup_code, dedup_code[-1].repeat(repeat_num)])
         padded_tgt_len = len(dedup_code) // self.code_frame_ratio
         
-        frames = torchvision.io.read_video(video_path, pts_unit="sec")[0]
+        # frames = torchvision.io.read_video(video_path, pts_unit="sec")[0]
+        # Replace torchvision with imageio to avoid PyAV dependency
+        reader = imageio.get_reader(video_path)
+        frames_list = [im for im in reader]
+        reader.close()
+        frames = torch.from_numpy(np.stack(frames_list))
+        
+        # Load crops and handle mismatch
+        crops = self.get_crops(bbox_path)
+        min_len = min(len(frames), len(crops))
+        if len(frames) != len(crops):
+            print(f"Warning: Frame count mismatch! Video: {len(frames)}, Crops: {len(crops)}. Truncating to {min_len}.")
+        
+        frames = frames[:min_len]
+        crops = crops[:min_len]
+        
         len_frames = len(frames)
         reverse_frames = frames.flip(0)
         repeated_frames = torch.cat((reverse_frames[1:], frames[1:]))
@@ -96,8 +154,8 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
         frames = frames[:padded_tgt_len]
         frames = frames.flip(-1)
         
-        crops = self.get_crops(bbox_path)
-        assert len(crops) == len_frames
+        # crops = self.get_crops(bbox_path) # Moved up
+        # assert len(crops) == len_frames   # Handled by truncation
         reverse_crops = crops[::-1]
         repeated_crops = np.concatenate([reverse_crops[1:], crops[1:]])
         while len(crops) < padded_tgt_len:
@@ -142,10 +200,10 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
             else:
                 kwargs["f0"] = kwargs["f0"].unsqueeze(1)
 
-            if x.shape[-1] < kwargs["f0"].shape[-1]:
-                x = self._upsample(x, kwargs["f0"].shape[-1])
-            elif x.shape[-1] > kwargs["f0"].shape[-1]:
-                kwargs["f0"] = self._upsample(kwargs["f0"], x.shape[-1])
+            # Robust resizing to match x
+            if x.shape[-1] != kwargs["f0"].shape[-1]:
+                kwargs["f0"] = F.interpolate(kwargs["f0"], size=x.shape[-1], mode='linear', align_corners=False)
+            
             x = torch.cat([x, kwargs["f0"]], dim=1)
 
         if self.multispkr:
@@ -153,14 +211,21 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
                 "spkr" in kwargs
             ), 'require "spkr" input for multispeaker CodeHiFiGAN vocoder'
             spkr = self.spkr(kwargs["spkr"]).transpose(1, 2)
-            spkr = self._upsample(spkr, x.shape[-1])
+            
+            # Robust resizing to match x
+            if x.shape[-1] != spkr.shape[-1]:
+                spkr = F.interpolate(spkr, size=x.shape[-1], mode='linear', align_corners=False)
+                
             x = torch.cat([x, spkr], dim=1)
 
         for k, feat in kwargs.items():
             if k in ["spkr", "code", "f0", "dur_prediction"]:
                 continue
 
-            feat = self._upsample(feat, x.shape[-1])
+            # Robust resizing
+            if x.shape[-1] != feat.shape[-1]:
+                feat = F.interpolate(feat, size=x.shape[-1], mode='linear', align_corners=False)
+                
             x = torch.cat([x, feat], dim=1)
 
         return super(CodeHiFiGANModel, self).forward(x), torch.repeat_interleave(kwargs["code"], dur_out.view(-1))

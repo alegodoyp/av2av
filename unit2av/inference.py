@@ -10,10 +10,10 @@ from unit2av.model import UnitAVRenderer
 from unit2av.model_speaker_encoder import SpeakerEncoder
 from util import save_video, extract_audio_from_video
 
-def load_model(model_path, cfg_path, lang, use_cuda=False):
+def load_model(model_path, cfg_path, lang, use_cuda=False, fp16=False):
     with open(cfg_path) as f:
         vocoder_cfg = json.load(f)
-    vocoder = UnitAVRenderer(model_path, vocoder_cfg, lang)
+    vocoder = UnitAVRenderer(model_path, vocoder_cfg, lang, fp16=fp16)
     if use_cuda:
         vocoder = vocoder.cuda()
     return vocoder

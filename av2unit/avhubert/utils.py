@@ -11,23 +11,32 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple
 
 def load_video(path):
-    for i in range(3):
-        try:
-            cap = cv2.VideoCapture(path)
-            frames = []
-            while True:
-                ret, frame = cap.read()
-                if ret:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    frames.append(frame)
-                else:
-                    break
-            frames = np.stack(frames)
-            return frames
-        except Exception:
-            print(f"failed loading {path} ({i} / 3)")
-            if i == 2:
-                raise ValueError(f"Unable to load {path}")
+    import imageio
+    import numpy as np
+    try:
+        reader = imageio.get_reader(path, 'ffmpeg')
+        frames = []
+        for i, im in enumerate(reader):
+            # imageio returns RGB, we need Gray?
+            # Original code: frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # imageio returns RGB (H, W, 3).
+            # Convert to Gray: 0.299 R + 0.587 G + 0.114 B
+            # Or use cv2 for color conversion only?
+            # Let's use simple dot product for grayscale if cv2 is flaky, 
+            # but cv2.cvtColor usually works if the array is valid.
+            # Let's use cv2 for conversion to match original behavior exactly if possible,
+            # or manual conversion to be safe.
+            # Safety: use cv2 for conversion (it shouldn't fail on numpy array)
+            im_display = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY) # imageio is RGB, cv2 expects src color. 
+            # Wait, cv2.COLOR_BGR2GRAY expects BGR. 
+            # imageio is RGB. So we want RGB2GRAY.
+            frames.append(im_display)
+        
+        frames = np.stack(frames)
+        return frames
+    except Exception as e:
+        print(f"failed loading {path} with imageio: {e}")
+        raise ValueError(f"Unable to load {path}")
 
 
 class Compose(object):
