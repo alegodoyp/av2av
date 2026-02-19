@@ -21,6 +21,9 @@ def main():
     parser.add_argument("--inference-repo", default="../model-stst-1", help="Path to model-stst-1 repo")
     parser.add_argument("--use-raw-video", action="store_true", help="Use raw videos instead of mouth_cropped")
     parser.add_argument("--cpu", action="store_true", help="Run on CPU to avoid OOM")
+    # MLFlow args
+    parser.add_argument("--mlflow-tracking-uri", default=None, help="MLFlow tracking URI")
+    parser.add_argument("--mlflow-experiment-name", default=None, help="MLFlow experiment name")
     args = parser.parse_args()
     
     if args.date == "today":
@@ -58,8 +61,14 @@ def main():
         "--src-lang", "pt",
         "--tgt-lang", "en",
         "--av2unit-path", av2unit_path,
-        "--batch-size", "50"
+        "--batch-size", "2",
+        "--update-freq", "25"
     ]
+    if args.mlflow_tracking_uri:
+        train_cmd.extend(["--mlflow-tracking-uri", args.mlflow_tracking_uri])
+    if args.mlflow_experiment_name:
+        train_cmd.extend(["--mlflow-experiment-name", args.mlflow_experiment_name])
+    
     if args.use_raw_video:
         train_cmd.append("--use-raw-video")
         

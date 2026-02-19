@@ -298,19 +298,42 @@ def process_batch(source_files, target_files, output_dir, av2unit_path, dict_pat
                 if f.startswith(split) and f.endswith(".idx") and f != f"{split}.idx":
                     found_idx = f
             
+            import time
+            def robust_move(src, dst, max_retries=10):
+                for i in range(max_retries):
+                    try:
+                        if os.path.exists(dst):
+                            try:
+                                os.remove(dst)
+                            except PermissionError:
+                                # If we can't remove it, maybe we can't rename over it either,
+                                # but let's try os.replace which is sometimes better
+                                pass
+                        
+                        if os.path.exists(dst):
+                             os.replace(src, dst)
+                        else:
+                             os.rename(src, dst)
+                        return
+                    except (PermissionError, OSError) as e:
+                        if i < max_retries - 1:
+                            print(f"File locked: {dst} (Attempt {i+1}/{max_retries}). Waiting...")
+                            time.sleep(2)
+                            continue
+                        print(f"Failed to move {src} to {dst} after {max_retries} attempts.")
+                        raise e
+
             if found_bin:
                 print(f"Renaming {found_bin} to {split}.bin")
                 src = lang_dir / found_bin
                 dst = lang_dir / f"{split}.bin"
-                if dst.exists(): os.remove(dst)
-                os.rename(src, dst)
+                robust_move(src, dst)
                 
             if found_idx:
                 print(f"Renaming {found_idx} to {split}.idx")
                 src = lang_dir / found_idx
                 dst = lang_dir / f"{split}.idx"
-                if dst.exists(): os.remove(dst)
-                os.rename(src, dst)
+                robust_move(src, dst)
 
         except subprocess.CalledProcessError as e:
             print(f"fairseq-preprocess failed for {lang} with return code {e.returncode}")

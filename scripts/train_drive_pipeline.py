@@ -13,7 +13,19 @@ from collections import defaultdict
 sys.path.append(os.getcwd())
 
 import drive_utils
-from scripts.prepare_data import process_batch
+try:
+    from scripts.prepare_data import process_batch
+except ModuleNotFoundError:
+    try:
+        from prepare_data import process_batch
+    except ModuleNotFoundError:
+        # Fallback if running from within scripts/ but scripts not in path?
+        sys.path.append(os.path.dirname(__file__))
+        from prepare_data import process_batch
+import torch
+import numpy as np
+
+print("DEBUG: train_drive_pipeline.py STARTED", flush=True)
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -22,7 +34,7 @@ def get_parser():
     parser.add_argument("--tgt-lang", required=True, help="Target language code (e.g. en)")
     parser.add_argument("--local-dir", default="temp_data", help="Local directory for temporary storage")
     parser.add_argument("--save-dir", default="checkpoints", help="Directory to save checkpoints")
-    parser.add_argument("--batch-size", type=int, default=50, help="Number of video pairs per batch")
+    parser.add_argument("--batch-size", type=int, default=2, help="Number of video pairs per batch")
     parser.add_argument("--av2unit-path", required=True, help="Path to av2unit model")
     parser.add_argument("--dict-path", default="data/dict.txt", help="Path to dictionary file")
     parser.add_argument("--daily", default=None, help="Date YYYY-MM-DD or 'today' for daily processing")
@@ -31,9 +43,13 @@ def get_parser():
     # Model args
     parser.add_argument("--arch", default="conformer_utut", help="Model architecture")
     parser.add_argument("--max-tokens", type=int, default=4096)
-    parser.add_argument("--update-freq", type=int, default=1)
-    parser.add_argument("--max-epoch", type=int, default=100)
+    parser.add_argument("--update-freq", type=int, default=25)
+    parser.add_argument("--max-epoch", type=int, default=10000)
     parser.add_argument("--validate-interval", type=int, default=1)
+    
+    # MLFlow args
+    parser.add_argument("--mlflow-tracking-uri", default=None, help="MLFlow tracking URI")
+    parser.add_argument("--mlflow-experiment-name", default=None, help="MLFlow experiment name")
     
     return parser
 
@@ -61,8 +77,32 @@ def run_training_step(data_bin, save_dir, args):
         print("Warning: Could not determine relative path for data_bin. Using absolute path which may fail on Windows.")
         data_bin_rel = str(data_bin)
 
-    cmd = [
-        sys.executable, "-m", "fairseq_cli.train",
+    # Determine max_epoch based on checkpoint
+    current_epoch = 0
+    checkpoint_path = os.path.join(save_dir, "checkpoint_last.pt")
+    if os.path.exists(checkpoint_path):
+        try:
+            # We need to peek at the checkpoint to see the current epoch
+            # Using torch.load directly is faster than fairseq utils for just metadata
+            import torch
+            state = torch.load(checkpoint_path, map_location="cpu")
+            # Fairseq checkpoints store epoch in extra_state['train_iterator']['epoch']
+            if "extra_state" in state and "train_iterator" in state["extra_state"]:
+                current_epoch = state["extra_state"]["train_iterator"].get("epoch", 0)
+            else:
+                current_epoch = state.get("epoch", 0)
+            
+            print(f"Resuming from epoch {current_epoch}")
+        except Exception as e:
+            print(f"Error reading checkpoint: {e}")
+            
+    # If user provided a literal max_epoch (like 10000), we want to override it 
+    # to be current + 50, unless it's the very first run, but even then +50 is safer.
+    # The user asked for "+50 epochs from checkpoint".
+    args.max_epoch = current_epoch + 50
+    print(f"Setting max_epoch to {args.max_epoch} (Current: {current_epoch} + 50)")
+
+    cmd_args = [
         data_bin_rel,
         "--save-dir", str(save_dir),
         "--task", "utut_pretraining",
@@ -81,7 +121,8 @@ def run_training_step(data_bin, save_dir, args):
         "--warmup-updates", "4000",
         "--lr", "0.0005",
         "--clip-norm", "0.0",
-        "--max-tokens", str(args.max_tokens),
+        "--batch-size", str(args.batch_size), 
+        "--max-tokens", "40000",
         "--update-freq", str(args.update_freq),
         "--max-epoch", str(args.max_epoch),
         "--validate-interval", str(args.validate_interval),
@@ -97,16 +138,30 @@ def run_training_step(data_bin, save_dir, args):
         "--skip-invalid-size-inputs-valid-test",
     ]
     
+    if args.mlflow_tracking_uri:
+        cmd_args.extend(["--mlflow-tracking-uri", args.mlflow_tracking_uri])
+    if args.mlflow_experiment_name:
+        cmd_args.extend(["--mlflow-experiment-name", args.mlflow_experiment_name])
+    
     # If using custom dictionary path, Fairseq usually expects it in data-bin/dict.txt
     # prepare_data.py puts it there.
     
-    print(f"Starting training on batch in {data_bin}...")
+    print(f"Starting training on batch in {data_bin}...", flush=True)
+    
+    # Add local fairseq to PYTHONPATH to ensure we use modified code
+    env = os.environ.copy()
+    fairseq_path = os.path.abspath("fairseq")
+    env["PYTHONPATH"] = fairseq_path + os.pathsep + env.get("PYTHONPATH", "")
+
+    # Use direct file path to force local version
+    train_script = os.path.join(fairseq_path, "fairseq_cli", "train.py")
+    cmd = [sys.executable, train_script] + cmd_args
+    
+    # Run the training command
     try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        subprocess.run(cmd, check=True, env=env)
     except subprocess.CalledProcessError as e:
         print(f"Training failed with return code {e.returncode}")
-        print("STDOUT:", e.stdout)
-        print("STDERR:", e.stderr)
         raise e
 
 def main():

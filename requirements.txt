@@ -5,3 +5,4 @@ librosa==0.8.1
 soundfile
 av
 ffmpeg-python
+mlflow
