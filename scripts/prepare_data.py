@@ -26,7 +26,89 @@ except Exception as e:
 import tempfile
 
 def load_av2unit_model(model_path, modalities="audio,video", use_cuda=True):
-    models, cfg, task = checkpoint_utils.load_model_ensemble_and_task([model_path])
+    # AV-HuBERT Base checkpoint config misses `_name` in older versions.
+    # Load state directly to patch it first before checkpoint_utils crashes.
+    state = torch.load(model_path, map_location="cpu")
+    if 'cfg' in state:
+        if 'model' in state['cfg']:
+            if getattr(state['cfg']['model'], '_name', None) is None:
+                if isinstance(state['cfg']['model'], dict):
+                    state['cfg']['model']['_name'] = 'av_hubert'
+                else:
+                    state['cfg']['model']._name = 'av_hubert'
+                    
+            # Fix negative dimension crash in AV-HuBERT Base when loading checkpoint
+            # due to missing `audio_feat_dim` in older config format.
+            if isinstance(state['cfg']['model'], dict):
+                if state['cfg']['model'].get('audio_feat_dim', -1) <= 0:
+                    state['cfg']['model']['audio_feat_dim'] = 104
+            else:
+                if getattr(state['cfg']['model'], 'audio_feat_dim', -1) <= 0:
+                    state['cfg']['model'].audio_feat_dim = 104
+                    
+        # Preserve projection weights from state dict as they cause size mismatches
+        # relative to the dummy validation subset dictionaries, but we need them for accurate extraction.
+        preserved_weights = {}
+        if 'model' in state:
+            keys_to_preserve = [k for k in state['model'].keys() if 'final_proj' in k or 'label_embs_concat' in k or 'target_glu' in k]
+            for k in keys_to_preserve:
+                preserved_weights[k] = state['model'][k]
+                del state['model'][k]
+                
+        if 'task' in state['cfg']:
+            # The older base checkpoint also misses 'label_rate' which Omegaconf demands
+            if getattr(state['cfg']['task'], 'label_rate', None) is None:
+                if isinstance(state['cfg']['task'], dict):
+                    state['cfg']['task']['label_rate'] = 25
+                else:
+                    state['cfg']['task'].label_rate = 25
+                    
+        # Resave temp patched version
+        import tempfile
+        patched_path = os.path.join(tempfile.gettempdir(), "patched_model.pt")
+        torch.save(state, patched_path)
+        model_path = patched_path
+        
+    models, cfg, task = checkpoint_utils.load_model_ensemble_and_task(
+        [model_path], 
+        strict=False
+    )
+    
+    model = models[0]
+    
+    # Manually re-attach preserved projection weights to guarantee exact token unit boundaries
+    if hasattr(model, 'num_classes') is False:
+        model.num_classes = []
+    
+    if 'label_embs_concat' in preserved_weights:
+        model.label_embs_concat = torch.nn.Parameter(preserved_weights['label_embs_concat'])
+        model.num_classes = [preserved_weights['label_embs_concat'].shape[0]]
+        
+    if 'final_proj.weight' in preserved_weights:
+        has_bias = 'final_proj.bias' in preserved_weights
+        model.final_proj = torch.nn.Linear(
+            preserved_weights['final_proj.weight'].shape[1],
+            preserved_weights['final_proj.weight'].shape[0],
+            bias=has_bias
+        )
+        model.final_proj.weight = torch.nn.Parameter(preserved_weights['final_proj.weight'])
+        if has_bias:
+            model.final_proj.bias = torch.nn.Parameter(preserved_weights['final_proj.bias'])
+
+    if 'target_glu.0.weight' in preserved_weights:
+        has_bias = 'target_glu.0.bias' in preserved_weights
+        model.target_glu = torch.nn.Sequential(
+            torch.nn.Linear(
+                preserved_weights['target_glu.0.weight'].shape[1],
+                preserved_weights['target_glu.0.weight'].shape[0],
+                bias=has_bias
+            ),
+            torch.nn.GLU()
+        )
+        model.target_glu[0].weight = torch.nn.Parameter(preserved_weights['target_glu.0.weight'])
+        if has_bias:
+            model.target_glu[0].bias = torch.nn.Parameter(preserved_weights['target_glu.0.bias'])
+
     for model in models:
         if use_cuda:
             model.cuda()
@@ -43,24 +125,44 @@ def load_av2unit_model(model_path, modalities="audio,video", use_cuda=True):
     # Create temp dummy manifest to satisfy load_dataset
     dataset_dir = tempfile.mkdtemp()
     
+    sample_rate = getattr(task.cfg, 'sample_rate', 16000)
+    label_rate = getattr(task.cfg, 'label_rate', 25)
+    max_size = getattr(task.cfg, 'max_sample_size', 2000)
+    min_size = getattr(task.cfg, 'min_sample_size', 5)
+    
+    # Handle None or dynamically interpolated OmegaConf strings
+    if not isinstance(max_size, int):
+        max_size = 2000
+    if not isinstance(min_size, int):
+        min_size = 5
+        
+    sz = min(max_size - 1, 400)
+    if sz <= min_size:
+        sz = min_size + 1
+        
+    duration_sec = sz / sample_rate
+    seq_len_tokens = max(1, int(duration_sec * label_rate))
+    
     # Create valid.tsv
     with open(os.path.join(dataset_dir, "valid.tsv"), "w") as f:
         f.write("/\n") # Root
-        # Dummy entry: id, video_path, audio_path, duration, dummy_extra
-        # Set duration to 100 frames (safe for min_sample_size)
-        f.write("dummy_id\tdummy.mp4\tdummy.wav\t100\tdummy_extra\n")
+        f.write(f"dummy_id\tdummy.mp4\tdummy.wav\t{sz}\tdummy_extra\n")
     
     # Create valid.{label} for each label type expected by the model
-    # Model config often has 'labels': ['km'] or similar
     labels = task.cfg.labels if hasattr(task.cfg, 'labels') else ["ltr"]
     for label in labels:
         with open(os.path.join(dataset_dir, f"valid.{label}"), "w") as f:
-            # Write 100 tokens to match the 100 frames duration
-            f.write("1 " * 100 + "\n")
+            f.write("1 " * seq_len_tokens + "\n")
             
     # Override task config to look at temp dir
     task.cfg.data = dataset_dir
     task.cfg.label_dir = dataset_dir
+    
+    # Synchronize single_target metric to bypass hubert_dataset assertion requirements
+    if hasattr(task.cfg, 'label_rate'):
+        task.cfg.single_target = (task.cfg.label_rate == -1)
+    elif hasattr(task.cfg, 'label_rates'):
+        task.cfg.single_target = (task.cfg.label_rates[0] == -1)
     
     # Load dataset (required to initialize task.dataset utilities)
     task.load_dataset(split="valid")
@@ -200,13 +302,14 @@ def create_dictionary(dict_path, num_units=2000):
             # Format: <symbol> <count>
             f.write(f"{i} 1\n")
 
-def process_batch(source_files, target_files, output_dir, av2unit_path, dict_path=None, split='train', src_lang='src', tgt_lang='tgt'):
+def process_batch(source_files, target_files, output_dir, av2unit_path, tgt_av2unit_path=None, dict_path=None, split='train', src_lang='src', tgt_lang='tgt'):
     """
     Process a batch of files.
     source_files: list of paths to source lang videos
     target_files: list of paths to target lang videos (aligned by index)
     output_dir: directory to write fairseq data
-    av2unit_path: path to av2unit checkpoint
+    av2unit_path: path to av2unit checkpoint (for source)
+    tgt_av2unit_path: path to av2unit checkpoint for target (optional, defaults to av2unit_path)
     src_lang: source language code
     tgt_lang: target language code
     """
@@ -214,14 +317,19 @@ def process_batch(source_files, target_files, output_dir, av2unit_path, dict_pat
     output_dir.mkdir(parents=True, exist_ok=True)
     
     use_cuda = torch.cuda.is_available()
-    model, task = load_av2unit_model(av2unit_path, use_cuda=use_cuda)
+    src_model, src_task = load_av2unit_model(av2unit_path, use_cuda=use_cuda)
+    
+    tgt_model, tgt_task = src_model, src_task
+    if tgt_av2unit_path is not None and tgt_av2unit_path != av2unit_path:
+        print(f"Loading separate target model from {tgt_av2unit_path}")
+        tgt_model, tgt_task = load_av2unit_model(tgt_av2unit_path, use_cuda=use_cuda)
     
     # If dict_path not provided, create one in output_dir
     if dict_path is None:
         dict_path = output_dir / "dict.txt"
         # Heuristic: Assume 2000 units if not known. 
         # Better: check model dictionary.
-        dictionary = task.dictionaries[0]
+        dictionary = src_task.dictionaries[0]
         # Fairseq dictionary has .save() method
         dictionary.save(str(dict_path))
     
@@ -233,8 +341,8 @@ def process_batch(source_files, target_files, output_dir, av2unit_path, dict_pat
         for src_vid, tgt_vid in zip(source_files, target_files):
             try:
                 print(f"Processing {src_vid} -> {tgt_vid}")
-                src_units = extract_units(model, task, src_vid, use_cuda)
-                tgt_units = extract_units(model, task, tgt_vid, use_cuda)
+                src_units = extract_units(src_model, src_task, src_vid, use_cuda)
+                tgt_units = extract_units(tgt_model, tgt_task, tgt_vid, use_cuda)
                 
                 if src_units is None or tgt_units is None:
                     print(f"Skipping pair {src_vid}, {tgt_vid} due to extraction failure.")

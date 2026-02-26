@@ -9,7 +9,10 @@ from unit2unit.task import UTUTPretrainingTask
 from util import process_units, save_unit
 
 def load_model(model_path, src_lang, tgt_lang, use_cuda=False):
-    models, cfg, task = checkpoint_utils.load_model_ensemble_and_task([model_path])
+    models, cfg, task = checkpoint_utils.load_model_ensemble_and_task(
+        [model_path], 
+        arg_overrides={"data": "data", "user_dir": "unit2unit"}
+    )
 
     # Fix seed for stochastic decoding
     if cfg.common.seed is not None and not cfg.generation.no_seed_provided:
@@ -25,6 +28,20 @@ def load_model(model_path, src_lang, tgt_lang, use_cuda=False):
 
     task.source_language = src_lang
     task.target_language = tgt_lang
+    
+    # We must ensure the task's dictionary exactly matches the model's embeddings.
+    # The checkpoint embeddings have size 2005. The base dictionary has 2004 tokens.
+    # The 1 extra token is the generic mask token used by the denoising task.
+    # We shouldn't add `[pt]`, `[en]`, `<mask_pt>`, or `<mask_en>` because they weren't
+    # saved in the model's embeddings.
+    
+    task.dictionary.add_symbol("<mask>")
+    task.mask_idx = task.dictionary.index("<mask>")
+
+    # Override Fairseq defaults to permit inference outputs over 2.0 seconds (i.e., 200 tokens @100hz)
+    cfg.generation.max_len_a = 1.2
+    cfg.generation.max_len_b = 100
+    cfg.generation.beam = 5
 
     generator = task.build_generator(
         models, cfg.generation

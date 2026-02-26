@@ -35,7 +35,8 @@ def get_parser():
     parser.add_argument("--local-dir", default="temp_data", help="Local directory for temporary storage")
     parser.add_argument("--save-dir", default="checkpoints", help="Directory to save checkpoints")
     parser.add_argument("--batch-size", type=int, default=2, help="Number of video pairs per batch")
-    parser.add_argument("--av2unit-path", required=True, help="Path to av2unit model")
+    parser.add_argument("--av2unit-path", required=True, help="Path to av2unit model (for source language)")
+    parser.add_argument("--tgt-av2unit-path", default=None, help="Path to av2unit model for target language (if different from source)")
     parser.add_argument("--dict-path", default="data/dict.txt", help="Path to dictionary file")
     parser.add_argument("--daily", default=None, help="Date YYYY-MM-DD or 'today' for daily processing")
     parser.add_argument("--use-raw-video", action="store_true", help="Use raw videos instead of mouth_cropped")
@@ -136,6 +137,7 @@ def run_training_step(data_bin, save_dir, args):
         "--max-target-positions", "4096",
         "--num-workers", "0",
         "--skip-invalid-size-inputs-valid-test",
+        "--required-batch-size-multiple", "1",
     ]
     
     if args.mlflow_tracking_uri:
@@ -312,6 +314,7 @@ def process_dataset(pairs, args, service, subset_name):
             tgt_files, 
             str(batch_dir), 
             args.av2unit_path,
+            tgt_av2unit_path=args.tgt_av2unit_path,
             dict_path=os.path.abspath(os.path.join("data", "dict.txt")), 
             split=subset_name,
             src_lang=args.src_lang,

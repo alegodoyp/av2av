@@ -1,5 +1,6 @@
 
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import argparse
 import sys
 import torch
@@ -15,6 +16,7 @@ from inference import (
     load_unit2av_model,
     load_speaker_encoder_model,
     extract_audio_from_video,
+    extract_bbox,
     save_video
 )
 
@@ -61,6 +63,10 @@ def main(args):
             bbox_path = str(out_path.with_suffix(".bbox.pkl"))
             
             extract_audio_from_video(str(vid_path), temp_audio_path)
+            
+            # Extract bounding boxes for final rendering
+            if not os.path.exists(bbox_path):
+                extract_bbox(str(vid_path), bbox_path)
             
             # 1. AV -> Unit (Source)
             # Input to process_av2unit expects lip_video_path. 

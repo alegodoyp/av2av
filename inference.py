@@ -232,6 +232,14 @@ class AVSpeechToAVSpeechPipeline:
         sample = {"net_input": {
             "src_tokens": torch.LongTensor(unit).view(1,-1),
         }}
+        
+        print(f"DEBUG unit2unit: max_token={unit.max().item()}, min_token={unit.min().item()}, vocab_size={len(task.source_dictionary)}")
+        if unit.max().item() >= len(task.source_dictionary):
+            print(f"WARNING: Token index {unit.max().item()} exceeds vocabulary size {len(task.source_dictionary)}!")
+            # Truncating or clipping off-vocab to unk to prevent CUDA crash
+            unit[unit >= len(task.source_dictionary)] = task.source_dictionary.unk()
+            sample["net_input"]["src_tokens"] = torch.LongTensor(unit).view(1,-1)
+
         sample = utils.move_to_cuda(sample) if self.use_cuda else sample
 
         # On-demand Move to GPU
@@ -256,6 +264,10 @@ class AVSpeechToAVSpeechPipeline:
 
     def process_unit2av(self, unit, audio_path, video_path, bbox_path):
         unit = list(map(int, unit.strip().split()))
+        
+        # Filter out special tokens or language tokens that exceed the unit vocabulary (0-1999)
+        # unit2av model's embedding size is exactly 2000.
+        unit = [u for u in unit if u < 2000]
 
         sample = {
             "code": torch.LongTensor(unit).view(1,-1),

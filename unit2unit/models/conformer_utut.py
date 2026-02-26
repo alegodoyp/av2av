@@ -134,7 +134,31 @@ class ConformerUtutEncoder(FairseqEncoder):
         return self.forwarded(src_tokens, src_lengths, return_all_hiddens)
 
     def reorder_encoder_out(self, encoder_out, new_order):
-        return TransformerModel.reorder_encoder_out(self, encoder_out, new_order)
+        if encoder_out is None:
+            return None
+            
+        new_encoder_out = []
+        if encoder_out.get("encoder_out") is not None:
+            for eo in encoder_out["encoder_out"]:
+                new_encoder_out.append(
+                    eo.index_select(1, new_order) if eo is not None else None
+                )
+        
+        new_encoder_padding_mask = []
+        if encoder_out.get("encoder_padding_mask") is not None:
+            for ep in encoder_out["encoder_padding_mask"]:
+                new_encoder_padding_mask.append(
+                    ep.index_select(0, new_order) if ep is not None else None
+                )
+
+        return {
+            "encoder_out": new_encoder_out,
+            "encoder_padding_mask": new_encoder_padding_mask,
+            "encoder_embedding": encoder_out.get("encoder_embedding", []),
+            "encoder_states": encoder_out.get("encoder_states", []),
+            "src_tokens": [],
+            "src_lengths": [],
+        }
 
 
 @register_model("conformer_utut")
@@ -142,7 +166,33 @@ class ConformerUtutModel(FairseqEncoderDecoderModel):
     def __init__(self, encoder, decoder):
         super().__init__(encoder, decoder)
 
-    @staticmethod
+    @classmethod
+    def reorder_encoder_out(cls, encoder_out, new_order):
+        if encoder_out is None:
+            return None
+            
+        new_encoder_out = []
+        if encoder_out.get("encoder_out") is not None:
+            for eo in encoder_out["encoder_out"]:
+                new_encoder_out.append(
+                    eo.index_select(1, new_order) if eo is not None else None
+                )
+        
+        new_encoder_padding_mask = []
+        if encoder_out.get("encoder_padding_mask") is not None:
+            for ep in encoder_out["encoder_padding_mask"]:
+                new_encoder_padding_mask.append(
+                    ep.index_select(0, new_order) if ep is not None else None
+                )
+
+        return {
+            "encoder_out": new_encoder_out,
+            "encoder_padding_mask": new_encoder_padding_mask,
+            "encoder_embedding": encoder_out.get("encoder_embedding", []),
+            "encoder_states": encoder_out.get("encoder_states", []),
+            "src_tokens": [],
+            "src_lengths": [],
+        }
     def add_args(parser):
         """Add model-specific arguments to the parser."""
         TransformerModel.add_args(parser)

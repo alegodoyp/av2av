@@ -53,6 +53,7 @@ def main():
     # 3. Training Loop (Train 80% / Test 20%)
     print("\n--- Step 3: Train/Test ---")
     av2unit_path = "checkpoints/mavhubert_large_noise.pt" # Default download loc
+    tgt_av2unit_path = "checkpoints/avhubert_base_1000.pt"
     
     train_cmd = [
         sys.executable, "scripts/train_drive_pipeline.py",
@@ -61,6 +62,7 @@ def main():
         "--src-lang", "pt",
         "--tgt-lang", "en",
         "--av2unit-path", av2unit_path,
+        "--tgt-av2unit-path", tgt_av2unit_path,
         "--batch-size", "2",
         "--update-freq", "25"
     ]

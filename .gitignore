@@ -21,6 +21,8 @@ test_videos_result/
 test_videos_tempo/
 results/
 samples/
+test_data/
+result_data/
 
 # Python
 __pycache__/

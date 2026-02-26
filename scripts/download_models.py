@@ -61,6 +61,12 @@ def main():
     output_path = os.path.join(args.output_dir, "mavhubert_large_noise.pt")
     download_file(mavhubert_url, output_path)
     
+    # Official AV-HuBERT Base Pretrained Model (1000 clusters) for Target Extraction
+    avhubert_base_url = "https://dl.fbaipublicfiles.com/avhubert/model/lrs3_vox/clean-pretrain/base_vox_iter4.pt"
+    
+    output_path_base = os.path.join(args.output_dir, "avhubert_base_1000.pt")
+    download_file(avhubert_base_url, output_path_base)
+    
     # Generate dictionary for units (0-1999) if missing
     dict_path = os.path.join("data", "dict.txt")
     if not os.path.exists(dict_path):
