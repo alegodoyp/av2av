@@ -12,8 +12,18 @@ Official PyTorch implementation for the following paper:
 <div align="center"><img width="100%" src="imgs/fig2.png?raw=true"/></div>
 
 ## Setup
-- Python >=3.7,<3.11
+
+### Ubuntu (Recommended)
+You can automatically set up the environment on Ubuntu using the provided script:
+```bash
+chmod +x setup_ubuntu.sh
+./setup_ubuntu.sh
+source venv/bin/activate
 ```
+
+### Manual / Windows
+- Python >=3.7,<3.11
+```bash
 git clone -b main --single-branch https://github.com/choijeongsoo/av2av
 cd av2av
 git submodule init
