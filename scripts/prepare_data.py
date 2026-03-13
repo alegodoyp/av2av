@@ -372,7 +372,7 @@ def process_batch(source_files, target_files, output_dir, av2unit_path, tgt_av2u
             "--target-lang", lang, # processed as source, target ignored with only-source
             "--destdir", str(lang_dir),
             "--srcdict", str(dict_path),
-            "--workers", "4"
+            "--workers", "32"
         ]
         
         if split == 'train':

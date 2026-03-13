@@ -63,7 +63,7 @@ def main():
         "--tgt-lang", "en",
         "--av2unit-path", av2unit_path,
         "--tgt-av2unit-path", tgt_av2unit_path,
-        "--batch-size", "2",
+        "--batch-size", "16",
         "--update-freq", "25"
     ]
     if args.mlflow_tracking_uri:

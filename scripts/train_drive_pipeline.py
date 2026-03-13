@@ -34,7 +34,7 @@ def get_parser():
     parser.add_argument("--tgt-lang", required=True, help="Target language code (e.g. en)")
     parser.add_argument("--local-dir", default="temp_data", help="Local directory for temporary storage")
     parser.add_argument("--save-dir", default="checkpoints", help="Directory to save checkpoints")
-    parser.add_argument("--batch-size", type=int, default=2, help="Number of video pairs per batch")
+    parser.add_argument("--batch-size", type=int, default=16, help="Number of video pairs per batch")
     parser.add_argument("--av2unit-path", required=True, help="Path to av2unit model (for source language)")
     parser.add_argument("--tgt-av2unit-path", default=None, help="Path to av2unit model for target language (if different from source)")
     parser.add_argument("--dict-path", default="data/dict.txt", help="Path to dictionary file")
@@ -43,7 +43,7 @@ def get_parser():
     
     # Model args
     parser.add_argument("--arch", default="conformer_utut", help="Model architecture")
-    parser.add_argument("--max-tokens", type=int, default=4096)
+    parser.add_argument("--max-tokens", type=int, default=200000)
     parser.add_argument("--update-freq", type=int, default=25)
     parser.add_argument("--max-epoch", type=int, default=10000)
     parser.add_argument("--validate-interval", type=int, default=1)
@@ -123,7 +123,7 @@ def run_training_step(data_bin, save_dir, args):
         "--lr", "0.0005",
         "--clip-norm", "0.0",
         "--batch-size", str(args.batch_size), 
-        "--max-tokens", "40000",
+        "--max-tokens", "200000",
         "--update-freq", str(args.update_freq),
         "--max-epoch", str(args.max_epoch),
         "--validate-interval", str(args.validate_interval),
@@ -135,7 +135,7 @@ def run_training_step(data_bin, save_dir, args):
         "--sample-break-mode", "eos",
         "--max-source-positions", "4096",
         "--max-target-positions", "4096",
-        "--num-workers", "0",
+        "--num-workers", "32",
         "--skip-invalid-size-inputs-valid-test",
         "--required-batch-size-multiple", "1",
     ]

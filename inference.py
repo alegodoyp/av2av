@@ -202,14 +202,9 @@ class AVSpeechToAVSpeechPipeline:
         }}
         sample = utils.move_to_cuda(sample) if self.use_cuda else sample
 
-        # On-demand Move to GPU
-        self._to_gpu(self.av2unit_model)
-
         with torch.cuda.amp.autocast():
-            pred = inference_av2unit_chunked(task, self.av2unit_model, sample, chunk_size=400)
-        
-        # Offload to CPU
-        self._to_cpu(self.av2unit_model)
+            pred = inference_av2unit_chunked(task, self.av2unit_model, sample, chunk_size=4000)
+
 
         pred_str = task.dictionaries[0].string(pred.int().cpu())
 
@@ -242,9 +237,6 @@ class AVSpeechToAVSpeechPipeline:
 
         sample = utils.move_to_cuda(sample) if self.use_cuda else sample
 
-        # On-demand Move to GPU
-        self._to_gpu(self.unit2unit_generator)
-
         with torch.cuda.amp.autocast():
             pred = task.inference_step(
                 self.unit2unit_generator,
@@ -252,8 +244,6 @@ class AVSpeechToAVSpeechPipeline:
                 sample,
             )[0][0]
 
-        # Offload to CPU
-        self._to_cpu(self.unit2unit_generator)
 
         pred_str = task.target_dictionary.string(
             pred["tokens"].int().cpu(),
@@ -280,16 +270,9 @@ class AVSpeechToAVSpeechPipeline:
             # Scale duration target down to 50Hz to maintain original playback speed.
             self.unit2av_model.model.tgt_dur = src_len_tokens // 2
 
-        # On-demand Move to GPU
-        self._to_gpu(self.unit2av_model)
-        self._to_gpu(self.speaker_encoder)
-
         with torch.cuda.amp.autocast():
             wav, video, full_video, bbox = self.unit2av_model(sample, video_path, bbox_path, dur_prediction=True)
 
-        # Offload to CPU
-        self._to_cpu(self.unit2av_model)
-        self._to_cpu(self.speaker_encoder)
 
         return wav, video, full_video, bbox
 
@@ -305,13 +288,13 @@ def main(args):
     temp_audio_path = os.path.splitext(args.in_vid_path)[0]+".temp.wav"
     extract_audio_from_video(args.in_vid_path, temp_audio_path)
 
-    # Load models on CPU initially to save VRAM and avoid OOM
-    # The pipeline will move them to GPU on demand
-    av2unit_model, av2unit_task = load_av2unit_model(args.av2unit_path, args.modalities, use_cuda=False)
-    unit2unit_task, unit2unit_generator = load_unit2unit_model(args.utut_path, args.src_lang, args.tgt_lang, use_cuda=False)
+    # Load models directly to GPU to maximize inference speed
+    # We remove use_cuda=False overrides since we have plenty of VRAM
+    av2unit_model, av2unit_task = load_av2unit_model(args.av2unit_path, args.modalities, use_cuda=use_cuda)
+    unit2unit_task, unit2unit_generator = load_unit2unit_model(args.utut_path, args.src_lang, args.tgt_lang, use_cuda=use_cuda)
     cfg_path = os.path.join("unit2av", "config.json")
-    unit2av_model = load_unit2av_model(args.unit2av_path, cfg_path, args.tgt_lang, use_cuda=False, fp16=True)
-    speaker_encoder_model = load_speaker_encoder_model(os.path.join("unit2av", "encoder.pt"), use_cuda=False)
+    unit2av_model = load_unit2av_model(args.unit2av_path, cfg_path, args.tgt_lang, use_cuda=use_cuda, fp16=True)
+    speaker_encoder_model = load_speaker_encoder_model(os.path.join("unit2av", "encoder.pt"), use_cuda=use_cuda)
 
     pipeline = AVSpeechToAVSpeechPipeline(
         av2unit_model, av2unit_task,
