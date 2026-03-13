@@ -262,7 +262,7 @@ class AVSpeechToAVSpeechPipeline:
 
         return pred_str
 
-    def process_unit2av(self, unit, audio_path, video_path, bbox_path):
+    def process_unit2av(self, unit, audio_path, video_path, bbox_path, src_len_tokens=None):
         unit = list(map(int, unit.strip().split()))
         
         # Filter out special tokens or language tokens that exceed the unit vocabulary (0-1999)
@@ -274,6 +274,11 @@ class AVSpeechToAVSpeechPipeline:
             "spkr": torch.from_numpy(self.speaker_encoder.get_embed(audio_path)).view(1,1,-1),
         }
         sample = utils.move_to_cuda(sample) if self.use_cuda else sample
+
+        if src_len_tokens is not None:
+            # AV-HuBERT source is 100Hz, but UnitAVRenderer vocoder expects 50Hz!
+            # Scale duration target down to 50Hz to maintain original playback speed.
+            self.unit2av_model.model.tgt_dur = src_len_tokens // 2
 
         # On-demand Move to GPU
         self._to_gpu(self.unit2av_model)

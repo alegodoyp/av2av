@@ -78,10 +78,17 @@ def main(args):
             # 2. Unit -> Unit (Translation)
             tgt_unit = pipeline.process_unit2unit(src_unit)
             
+            src_len = len(src_unit.strip().split())
+            tgt_len = len(tgt_unit.strip().split())
+            print(f"DEBUG: src_unit length: {src_len} tokens ({src_len/100:.2f}s)")
+            print(f"DEBUG: tgt_unit length: {tgt_len} tokens ({tgt_len/100:.2f}s)")
+            
             # 3. Unit -> AV (Synthesis)
             tgt_audio, tgt_video, full_video, bbox = pipeline.process_unit2av(
-                tgt_unit, temp_audio_path, str(vid_path), bbox_path
+                tgt_unit, temp_audio_path, str(vid_path), bbox_path, src_len_tokens=src_len
             )
+            
+            print(f"DEBUG: tgt_video length (frames/seconds): {len(tgt_video)} frames ({len(tgt_video)/25:.2f}s)")
 
             save_video(tgt_audio, tgt_video, full_video, bbox, str(out_path))
             
@@ -90,6 +97,7 @@ def main(args):
                 os.remove(temp_audio_path)
             if os.path.exists(bbox_path):
                 os.remove(bbox_path)
+            break
 
         except Exception as e:
             print(f"Failed to process {vid_path}: {e}")

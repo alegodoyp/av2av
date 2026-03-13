@@ -105,9 +105,11 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
         x = np.transpose(x, (3, 0, 1, 2))
         return x
 
-    def forward(self, x: Dict[str, torch.Tensor], video_path: str, bbox_path: str, dur_prediction=False) -> torch.Tensor:
+    def forward(self, x: Dict[str, torch.Tensor], video_path: str, bbox_path: str, dur_prediction=False, tgt_dur=None) -> torch.Tensor:
         assert "code" in x
         x["dur_prediction"] = dur_prediction
+        if tgt_dur is not None:
+            x["tgt_dur"] = tgt_dur
 
         if dur_prediction:
             x["code"] = torch.unique_consecutive(x["code"])
@@ -120,8 +122,24 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
             mask = mask.unsqueeze(2).repeat(1, 1, f0_up_ratio).view(-1, x["f0"].size(1))
             x["f0"] = x["f0"][mask].unsqueeze(dim=0)
 
-        gen_wav, dedup_code = self.model(**x)
-        gen_wav = gen_wav.detach().squeeze().cpu().numpy()
+        # Handle batched synthesis to avoid OOM
+        chunk_size = 400 # Token chunks
+        out_wavs = []
+        out_codes = []
+        seq_len = x["code"].size(2) if x["code"].dim() == 3 else x["code"].size(1)
+        
+        # We need to chunk before duration prediction to avoid inflating to full size
+        # Wait, if dur_prediction is True, we unique_consecutive FIRST, then the model handles duration.
+        # So we can't easily chunk here if the model inflates it internally and then generates audio.
+        # Actually, if the model inflates it, it returns `dedup_code` which is already padded!
+        # If we chunk `x["code"]`, `tgt_dur` will be wrong for each chunk.
+        # Let's chunk AFTER the model's inflate step? 
+        # But `CodeHiFiGANModel` does inflate AND vocode altogether inside `forward`.
+        # We must disable OOM inside `CodeHiFiGANModel`...
+        
+        with torch.no_grad():
+            gen_wav, dedup_code = self.model(**x)
+        gen_wav = gen_wav.squeeze().cpu().numpy()
 
         tgt_len = len(dedup_code) // self.code_frame_ratio
         remain = len(dedup_code) % self.num_units
@@ -149,8 +167,18 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
         len_frames = len(frames)
         reverse_frames = frames.flip(0)
         repeated_frames = torch.cat((reverse_frames[1:], frames[1:]))
-        while len(frames) < padded_tgt_len:
-            frames = torch.cat([frames, repeated_frames])
+        
+        # Calculate exactly how many repetitions are needed
+        if len(frames) < padded_tgt_len:
+            repeats_needed = (padded_tgt_len - len(frames)) // len(repeated_frames) + 1
+            print(f"DEBUG UnitAVRenderer: padded_tgt_len={padded_tgt_len}, len(frames)={len(frames)}, len(repeated_frames)={len(repeated_frames)}, repeats_needed={repeats_needed}")
+            # Protect against catastrophic explosion
+            if repeats_needed > 1000:
+                print(f"ERROR: repeats_needed={repeats_needed} is insanely large! Clamping to 50.")
+                repeats_needed = 50
+                
+            frames = torch.cat([frames] + [repeated_frames] * repeats_needed)
+            
         frames = frames[:padded_tgt_len]
         frames = frames.flip(-1)
         
@@ -158,8 +186,15 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
         # assert len(crops) == len_frames   # Handled by truncation
         reverse_crops = crops[::-1]
         repeated_crops = np.concatenate([reverse_crops[1:], crops[1:]])
-        while len(crops) < padded_tgt_len:
-            crops = np.concatenate([crops, repeated_crops])
+        
+        if len(crops) < padded_tgt_len:
+            repeats_needed = (padded_tgt_len - len(crops)) // len(repeated_crops) + 1
+            print(f"DEBUG UnitAVRenderer crops: padded_tgt_len={padded_tgt_len}, len(crops)={len(crops)}, repeats_needed={repeats_needed}")
+            if repeats_needed > 1000:
+                repeats_needed = 50
+                
+            crops = np.concatenate([crops] + [repeated_crops] * repeats_needed)
+            
         crops = crops[:padded_tgt_len]
 
         frames_numpy = np.array(frames)
@@ -175,22 +210,54 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
         windows = torch.FloatTensor(windows).to(dedup_code_seq.device)
         windows = windows.transpose(1,0)
 
-        gen_vid = self.face_model(dedup_code_seq, windows)
-        gen_vid = (gen_vid.detach().cpu().numpy().transpose(0,2,3,1)* 255.).astype(np.uint8)
+        chunk_frames = 50 * self.num_units  # E.g. process 50 * 10 = 500 sequence tokens at a time representing 10s of sequence data. 
+        # Wait, self.num_units is 50. code_frame_ratio is 2. (50 units = 25 frames = 1 second). Let's process 300 units (6 seconds) at a time.
+        chunk_units = 300
+        # Ensure chunk_units is a multiple of self.num_units
+        chunk_units = (chunk_units // self.num_units) * self.num_units
+        
+        gen_vids = []
+        with torch.no_grad():
+            frames_per_seq = self.num_units // self.code_frame_ratio
+            for i in range(0, dedup_code_seq.size(0), chunk_units // self.num_units):
+                end = min(i + (chunk_units // self.num_units), dedup_code_seq.size(0))
+                
+                start_frame = i * frames_per_seq
+                end_frame = end * frames_per_seq
+                
+                vid_chunk = self.face_model(dedup_code_seq[i:end], windows[start_frame:end_frame])
+                vid_chunk = (vid_chunk.cpu().numpy().transpose(0, 2, 3, 1) * 255.0).astype(np.uint8)
+                gen_vids.append(vid_chunk)
 
+        gen_vid = np.concatenate(gen_vids, axis=0) if gen_vids else np.array([])
+        
         return gen_wav, gen_vid[:tgt_len], frames_numpy[:tgt_len], crops[:tgt_len]
 
 
 class CodeHiFiGANModel_spk(CodeHiFiGANModel):
     def forward(self, **kwargs):
         x = self.dict(kwargs["code"]).transpose(1, 2)
+        tgt_dur = getattr(self, "tgt_dur", None)
+        
+        dur_pred_arg = kwargs.get("dur_prediction", False)
+        print(f"DEBUG CodeHiFiGANModel_spk params: dur_predictor={self.dur_predictor is not None}, dur_prediction_arg={dur_pred_arg}, tgt_dur={tgt_dur}")
 
-        if self.dur_predictor and kwargs.get("dur_prediction", False):
+        if self.dur_predictor and dur_pred_arg:
             assert x.size(0) == 1, "only support single sample"
             log_dur_pred = self.dur_predictor(x.transpose(1, 2))
             dur_out = torch.clamp(
                 torch.round((torch.exp(log_dur_pred) - 1)).long(), min=1
             )
+            
+            print(f"DEBUG CodeHiFiGANModel_spk: Initial dur_out sum={dur_out.sum().item()}, tgt_dur={tgt_dur}")
+            if tgt_dur is not None:
+                diff = tgt_dur - dur_out.sum().item()
+                if diff > 0:
+                    dur_out[0, -1] += diff
+                    print(f"DEBUG CodeHiFiGANModel_spk: Padded dur_out[0, -1] with diff={diff}, new sum={dur_out.sum().item()}")
+            else:
+                print("DEBUG CodeHiFiGANModel_spk: tgt_dur is None... Skipping Padding.")
+                    
             # B x C x T
             x = torch.repeat_interleave(x, dur_out.view(-1), dim=2)
 
@@ -219,7 +286,7 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
             x = torch.cat([x, spkr], dim=1)
 
         for k, feat in kwargs.items():
-            if k in ["spkr", "code", "f0", "dur_prediction"]:
+            if k in ["spkr", "code", "f0", "dur_prediction", "tgt_dur"]:
                 continue
 
             # Robust resizing
@@ -228,7 +295,21 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
                 
             x = torch.cat([x, feat], dim=1)
 
-        return super(CodeHiFiGANModel, self).forward(x), torch.repeat_interleave(kwargs["code"], dur_out.view(-1))
+        # Chunked audio vocoding to prevent OOM
+        chunk_size = 300  # Token frames (e.g. 300 * ~0.01s ~ 3 seconds audio at a time)
+        out_wavs = []
+        with torch.no_grad():
+            for i in range(0, x.size(2), chunk_size):
+                x_chunk = x[:, :, i : i + chunk_size]
+                wav_chunk = super(CodeHiFiGANModel, self).forward(x_chunk)
+                out_wavs.append(wav_chunk)
+                
+        wav_out = torch.cat(out_wavs, dim=-1)
+        
+        dedup_code_out = torch.repeat_interleave(kwargs["code"], dur_out.view(-1))
+        print(f"DEBUG CodeHiFiGANModel_spk return: wav_out=({wav_out.shape}), dedup_code_out=({dedup_code_out.shape}), kwargs[code]={kwargs['code'].shape}")
+        
+        return wav_out, dedup_code_out
 
 
 class FaceRenderer(nn.Module):
