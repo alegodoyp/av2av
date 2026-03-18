@@ -32,7 +32,11 @@ pip install -r requirements.txt
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 echo "[4/4] Installing fairseq from local folder..."
-if [ -d "fairseq" ]; then
+echo "Initializing and updating git submodules (fairseq)..."
+git submodule init
+git submodule update
+
+if [ -f "fairseq/setup.py" ]; then
     pip install -e ./fairseq
 else
     echo "WARNING: fairseq folder not found in current directory. Please clone it or ensure it's present."
