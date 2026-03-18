@@ -3,42 +3,42 @@
 # Exit on error
 set -e
 
-echo "=== Setting up AV2AV Pipeline for Ubuntu ==="
+echo "=== Setting up AV2AV Pipeline for Ubuntu (Conda version) ==="
 
-echo "[1/5] Updating package lists..."
-sudo apt-get update -y
-
-echo "[2/5] Installing system dependencies..."
-sudo apt-get install -y ffmpeg build-essential python3-dev python3-venv git
-
-echo "[3/5] Setting up Python virtual environment..."
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
-    echo "Virtual environment created in ./venv"
-else
-    echo "Virtual environment already exists."
+# Check for conda
+if ! command -v conda &> /dev/null; then
+    echo "ERROR: conda is not installed or not in PATH."
+    echo "Please install Miniconda or Anaconda first:"
+    echo "https://docs.anaconda.com/free/miniconda/"
+    exit 1
 fi
 
-echo "Activating virtual environment..."
-source venv/bin/activate
+ENV_NAME="av2av_env"
 
-echo "[4/5] Installing Python dependencies..."
+echo "[1/4] Creating Conda environment '$ENV_NAME' with Python, FFmpeg, and Git..."
+# We use Python 3.10 (av2av recommends Python >=3.7,<3.11)
+conda create -y -n $ENV_NAME -c conda-forge python=3.10 "ffmpeg<5" git
+
+echo "[2/4] Activating environment..."
+# Properly initialize conda configuration for the script block
+eval "$(conda shell.bash hook)"
+conda activate $ENV_NAME
+
+echo "[3/4] Installing Python dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Install PyTorch for CUDA (adjust version if needed for specific hardware)
-# Using standard PyTorch command for Linux with CUDA 11.8 (or choose newest based on fairseq support)
-# We assume fairseq supports standard recent torches or defaults.
+# Install PyTorch for CUDA 11.8 (Adjust if your Linux box has a different CUDA version)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-echo "[5/5] Installing fairseq from local folder..."
+echo "[4/4] Installing fairseq from local folder..."
 if [ -d "fairseq" ]; then
     pip install -e ./fairseq
 else
     echo "WARNING: fairseq folder not found in current directory. Please clone it or ensure it's present."
-    echo "If you need to clone it: git clone https://github.com/facebookresearch/fairseq"
+    echo "git clone https://github.com/facebookresearch/fairseq"
 fi
 
 echo "=== Setup Complete! ==="
-echo "To activate the environment, run:"
-echo "source venv/bin/activate"
+echo "To activate the environment in the future, run:"
+echo "conda activate $ENV_NAME"
