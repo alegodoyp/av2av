@@ -68,7 +68,7 @@ def run_training(data_bin, save_dir, args):
         "--lr-scheduler", "inverse_sqrt", 
         "--warmup-init-lr", "1e-07",
         "--warmup-updates", "4000",
-        "--lr", "0.0005",
+        "--lr", "1e-4",
         "--clip-norm", "0.0",
         "--batch-size", str(args.batch_size), 
         "--max-tokens", str(args.max_tokens),
@@ -77,8 +77,8 @@ def run_training(data_bin, save_dir, args):
         "--validate-interval", str(args.validate_interval),
         "--patience", "10",
         "--no-epoch-checkpoints",
+        "--finetune-from-model", "checkpoints/utut_sts_ft.pt",
         "--user-dir", os.path.join(os.getcwd(), "unit2unit"),
-        "--disable-validation", 
         "--tokens-per-sample", "4096",
         "--sample-break-mode", "eos",
         "--max-source-positions", "4096",
@@ -276,12 +276,12 @@ def main():
             
     # 8. Start fairseq training on the unified binaries
     os.makedirs(args.save_dir, exist_ok=True)
-    run_training(unified_bin_dir / "bin", args.save_dir, args)
+    run_training(unified_bin_dir, args.save_dir, args)
     
     # Cleanup downloads to free disk space
     print("Training finished! Cleaning up temporary data directory...")
     # Optional: comment this out if you want to keep the preprocessed data-bin
-    shutil.rmtree(local_dir)
+    # shutil.rmtree(local_dir)
     print("Done!")
 
 if __name__ == "__main__":
