@@ -9,9 +9,12 @@ from unit2unit.task import UTUTPretrainingTask
 from util import process_units, save_unit
 
 def load_model(model_path, src_lang, tgt_lang, use_cuda=False):
+    # Do not override 'data': the checkpoint's original args.data ('./')
+    # loads ./dict.txt from CWD. Overriding with 'data' crashes because
+    # data/dict.txt does not exist.
     models, cfg, task = checkpoint_utils.load_model_ensemble_and_task(
-        [model_path], 
-        arg_overrides={"data": "data", "user_dir": "unit2unit"}
+        [model_path],
+        arg_overrides={"user_dir": "unit2unit"}
     )
 
     # Fix seed for stochastic decoding
@@ -23,18 +26,13 @@ def load_model(model_path, src_lang, tgt_lang, use_cuda=False):
         if cfg.common.fp16:
             model.half()
         if use_cuda and not cfg.distributed_training.pipeline_model_parallel:
-            model.cuda()            
+            model.cuda()
         model.prepare_for_inference_(cfg)
 
     task.source_language = src_lang
     task.target_language = tgt_lang
-    
-    # We must ensure the task's dictionary exactly matches the model's embeddings.
-    # The checkpoint embeddings have size 2005. The base dictionary has 2004 tokens.
-    # The 1 extra token is the generic mask token used by the denoising task.
-    # We shouldn't add `[pt]`, `[en]`, `<mask_pt>`, or `<mask_en>` because they weren't
-    # saved in the model's embeddings.
-    
+
+    # setup_task already added <mask> via UTUTPretrainingTask.__init__; this is a no-op.
     task.dictionary.add_symbol("<mask>")
     task.mask_idx = task.dictionary.index("<mask>")
 

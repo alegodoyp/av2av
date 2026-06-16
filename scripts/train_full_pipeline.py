@@ -48,6 +48,21 @@ def get_parser():
     
     return parser
 
+def create_extended_dict(output_path):
+    """Create dict.txt with 1020 entries matching utut_sts_ft.pt vocab=1024.
+
+    Layout: 4 specials (bos/pad/eos/unk) + 1000 units + 19 lang tokens + <mask> = 1024.
+    Lang token order must match the checkpoint's --langs argument exactly.
+    """
+    LANG_ORDER = ["en","es","fr","it","pt","el","ru","cs","da","de","fi","hr","hu","lt","nl","pl","ro","sk","sl"]
+    with open(output_path, 'w') as f:
+        for i in range(1000):
+            f.write(f"{i} 1\n")
+        for lang in LANG_ORDER:
+            f.write(f"[{lang}] 1\n")
+        f.write("<mask> 1\n")
+
+
 def run_training(data_bin, save_dir, args):
     """Invokes fairseq-train on the complete prepared data."""
     try:
@@ -59,18 +74,27 @@ def run_training(data_bin, save_dir, args):
         data_bin_rel,
         "--save-dir", str(save_dir),
         "--task", "utut_pretraining",
-        "--arch", args.arch,
+        # mbart_large matches the utut_sts_ft.pt checkpoint architecture exactly.
+        # Encoder/decoder: 12 layers, dim=1024, heads=16, ffn=4096, normalize_before=True,
+        # sinusoidal pos-embeddings (learned_pos not passed → None → falsy → sinusoidal).
+        "--arch", "mbart_large",
+        # Pass only the two data languages; all 19 lang tokens are pre-baked in dict_full.txt
+        # so add_lang_token just looks up existing indices without growing the vocab.
         "--langs", f"{args.src_lang},{args.tgt_lang}",
+        "--add-lang-token",
+        "--encoder-normalize-before",
+        "--decoder-normalize-before",
+        "--attention-dropout", "0.1",
         "--criterion", "label_smoothed_cross_entropy",
-        "--label-smoothing", "0.1",
-        "--optimizer", "adam", 
+        "--label-smoothing", "0.2",
+        "--optimizer", "adam",
         "--adam-betas", "(0.9, 0.98)",
-        "--lr-scheduler", "inverse_sqrt", 
-        "--warmup-init-lr", "1e-07",
-        "--warmup-updates", "4000",
+        "--lr-scheduler", "polynomial_decay",
+        "--total-num-update", "50000",
+        "--warmup-updates", "3000",
         "--lr", "1e-4",
-        "--clip-norm", "0.0",
-        "--batch-size", str(args.batch_size), 
+        "--clip-norm", "0.1",
+        "--batch-size", str(args.batch_size),
         "--max-tokens", str(args.max_tokens),
         "--update-freq", str(args.update_freq),
         "--max-epoch", str(args.max_epoch),
@@ -79,13 +103,13 @@ def run_training(data_bin, save_dir, args):
         "--no-epoch-checkpoints",
         "--finetune-from-model", "checkpoints/utut_sts_ft.pt",
         "--user-dir", os.path.join(os.getcwd(), "unit2unit"),
-        "--tokens-per-sample", "4096",
+        "--tokens-per-sample", "1020",
         "--sample-break-mode", "eos",
-        "--max-source-positions", "4096",
-        "--max-target-positions", "4096",
+        "--max-source-positions", "1024",
+        "--max-target-positions", "1024",
         "--num-workers", "32",
         "--skip-invalid-size-inputs-valid-test",
-        "--required-batch-size-multiple", "1",
+        "--required-batch-size-multiple", "8",
     ]
     
     if args.mlflow_tracking_uri:
@@ -189,7 +213,14 @@ def main():
     local_dir = Path(os.path.abspath(args.local_dir))
     train_dir = local_dir / "train_data"
     val_dir = local_dir / "val_data"
-    
+
+    # Create extended dict compatible with utut_sts_ft.pt (vocab=1024).
+    # This must be done before download_and_preprocess so process_batch uses it.
+    extended_dict_path = os.path.abspath("dict_full.txt")
+    create_extended_dict(extended_dict_path)
+    args.dict_path = extended_dict_path
+    print(f"Extended dict written to {extended_dict_path} (1020 entries, vocab=1024).")
+
     # Clean up previous runs if any
     if local_dir.exists():
         shutil.rmtree(local_dir)
