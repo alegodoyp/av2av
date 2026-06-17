@@ -4,8 +4,8 @@ Vocabulary verification script for utut_sts_ft.pt fine-tuning.
 Run from the repository root:
     python scripts/verify_vocab.py
 
-The script self-reinvokes with PYTHONPATH=./fairseq so the local fairseq
-package is always found first, regardless of what is installed in the env.
+Prerequisites:
+    pip install -e fairseq/ --no-deps   (run once after git submodule init)
 """
 
 import os
@@ -13,13 +13,16 @@ import sys
 import subprocess
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-FSQ  = os.path.join(REPO, "fairseq")   # av2av/fairseq/  →  contains fairseq/fairseq/__init__.py
+FSQ  = os.path.join(REPO, "fairseq")   # av2av/fairseq/  — pip install -e points here
 
-# ── self-reinvoke with correct PYTHONPATH ─────────────────────────────────────
-# sys.path.insert() at runtime doesn't help when Python already registered
-# av2av/fairseq/ as a namespace package via .pth / egg-link at startup.
-# Re-invoking ourselves with PYTHONPATH set ensures the right package is
-# found from process launch, before any import machinery runs.
+# ── self-reinvoke so PYTHONPATH is set before Python's import machinery runs ──
+# Running from av2av/ puts '' (= av2av/) in sys.path[0].  Python then finds
+# the outer av2av/fairseq/ folder as a *namespace* package (no __init__.py
+# there) before reaching the pip-installed regular package.  Setting PYTHONPATH
+# before process start avoids this; the child sees the .pth path from pip
+# install -e BEFORE the cwd namespace portion.
+# NOTE: do NOT add REPO_ROOT to sys.path inside the script — that reintroduces
+# the same namespace-package conflict.
 if os.environ.get("_VOCAB_OK") != "1":
     env = dict(os.environ)
     env["PYTHONPATH"] = FSQ + os.pathsep + env.get("PYTHONPATH", "")
@@ -27,15 +30,11 @@ if os.environ.get("_VOCAB_OK") != "1":
     sys.exit(subprocess.run([sys.executable] + sys.argv, env=env).returncode)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# From here on PYTHONPATH is correct.  Add repo root for unit2unit / util.
-if REPO not in sys.path:
-    sys.path.insert(0, REPO)
-
 import torch
-from fairseq.data              import Dictionary
-from fairseq.checkpoint_utils  import load_checkpoint_to_cpu
-from fairseq.dataclass.utils   import convert_namespace_to_omegaconf
-from fairseq                   import tasks
+from fairseq.data             import Dictionary
+from fairseq.checkpoint_utils import load_checkpoint_to_cpu
+from fairseq.dataclass.utils  import convert_namespace_to_omegaconf
+from fairseq                  import tasks, utils
 
 print(f"fairseq loaded from: {__import__('fairseq').__file__}")
 
@@ -85,8 +84,8 @@ print(SEP)
 assert os.path.exists(CKPT), f"Checkpoint not found: {CKPT}"
 ck = torch.load(CKPT, map_location="cpu", weights_only=False)
 
-print("Checkpoint top-level keys :", list(ck.keys()))
-print("task_state                :", ck.get("task_state", {}))
+print("Checkpoint top-level keys:", list(ck.keys()))
+print("task_state               :", ck.get("task_state", {}))
 print()
 
 for key in ["encoder.embed_tokens.weight",
@@ -95,25 +94,45 @@ for key in ["encoder.embed_tokens.weight",
     if key in ck["model"]:
         print(f"  ck['model'][{key!r}].shape = {list(ck['model'][key].shape)}")
 
-args = ck["args"]
-print()
-print(f"args.arch           = {args.arch!r}")
-print(f"args._name          = {getattr(args, '_name', '<absent>')!r}")
-print(f"args.langs          = {args.langs!r}")
-print(f"args.add_lang_token = {args.add_lang_token!r}")
-print(f"args.data           = {args.data!r}")
+# The checkpoint may store args as a Namespace (old format) or as cfg (new format).
+raw_args = ck.get("args")
+raw_cfg  = ck.get("cfg")
+if raw_args is not None:
+    arch           = raw_args.arch
+    model_name     = getattr(raw_args, "_name", "<absent>")
+    ckpt_langs_str = raw_args.langs
+    add_lang_token = raw_args.add_lang_token
+    ckpt_data      = raw_args.data
+else:
+    # raw_cfg is a plain Python dict (from torch.load directly).
+    # raw_cfg["model"] is an argparse Namespace → attribute access only.
+    # raw_cfg["task"]  is a plain dict → .get() works normally.
+    _m = raw_cfg["model"]
+    _t = raw_cfg["task"]
+    arch           = getattr(_m, "_name", None) or getattr(_m, "arch", "?")
+    model_name     = getattr(_m, "_name", "<absent>")
+    ckpt_langs_str = _t.get("langs", "?")
+    add_lang_token = _t.get("add_lang_token", "?")
+    ckpt_data      = _t.get("data", "?")
 
-# Reconstruct vocab as setup_task built it at checkpoint training time:
-#   dict.txt (1000 units) + 19 lang tokens (in args.langs order) + <mask>
+print()
+print(f"arch           = {arch!r}")
+print(f"model _name    = {model_name!r}")
+print(f"langs          = {ckpt_langs_str!r}")
+print(f"add_lang_token = {add_lang_token!r}")
+print(f"data           = {ckpt_data!r}")
+
+# Reconstruct vocab exactly as the original setup_task built it:
+#   dict.txt (1000 units) + 19 lang tokens (langs order) + <mask>
 assert os.path.exists(ROOT_DICT), f"dict.txt not found: {ROOT_DICT}"
 gt = Dictionary.load(ROOT_DICT)
-print(f"\nAfter Dictionary.load(dict.txt)  : {len(gt)} symbols")
-ckpt_langs = args.langs.split(",")
+print(f"\nAfter Dictionary.load(dict.txt) : {len(gt)} symbols")
+ckpt_langs = ckpt_langs_str.split(",")
 for lang in ckpt_langs:
     gt.add_symbol(f"[{lang}]")
-print(f"After {len(ckpt_langs)} lang tokens            : {len(gt)} symbols")
+print(f"After {len(ckpt_langs)} lang tokens          : {len(gt)} symbols")
 gt.add_symbol("<mask>")
-print(f"After <mask>                     : {len(gt)} symbols  ← GROUND TRUTH")
+print(f"After <mask>                    : {len(gt)} symbols  ← GROUND TRUTH")
 
 print(f"\nGround-truth vocab size = {len(gt)}")
 print("Last 22 symbols:")
@@ -136,11 +155,11 @@ with open(FULL_DICT) as fh:
     raw_lines = fh.readlines()
 
 print(f"  Total lines  : {len(raw_lines)}  (expected 1020)")
-print(f"  lines[0]     : {raw_lines[0].rstrip()!r}              ← first unit")
-print(f"  lines[999]   : {raw_lines[999].rstrip()!r}            ← last unit")
-print(f"  lines[1000]  : {raw_lines[1000].rstrip()!r}     ← first lang token")
-print(f"  lines[1018]  : {raw_lines[1018].rstrip()!r}      ← last lang token")
-print(f"  lines[1019]  : {raw_lines[1019].rstrip()!r}         ← <mask>")
+print(f"  lines[0]     : {raw_lines[0].rstrip()!r}          ← first unit")
+print(f"  lines[999]   : {raw_lines[999].rstrip()!r}        ← last unit")
+print(f"  lines[1000]  : {raw_lines[1000].rstrip()!r}  ← first lang token [en]")
+print(f"  lines[1018]  : {raw_lines[1018].rstrip()!r}  ← last lang token [sl]")
+print(f"  lines[1019]  : {raw_lines[1019].rstrip()!r}     ← <mask>")
 print(f"  {'✓' if len(raw_lines) == 1020 else '✗'} {len(raw_lines)} lines")
 
 # ── (a) training dict ─────────────────────────────────────────────────────────
@@ -149,26 +168,28 @@ dt = Dictionary.load(FULL_DICT)
 print(f"  After load             : {len(dt)} symbols")
 for lang in ["pt", "en"]:
     idx = dt.add_symbol(f"[{lang}]")
-    print(f"  add_symbol('[{lang}]') → {idx}  {'(pre-existing ✓)' if idx <= 1022 else '(NEW added ✗)'}")
+    print(f"  add_symbol('[{lang}]') → {idx}  "
+          f"{'(pre-existing ✓)' if idx < len(dt) else '(NEW ✗)'}")
 mi = dt.add_symbol("<mask>")
-print(f"  add_symbol('<mask>') → {mi}  {'(pre-existing ✓)' if mi == 1023 else '(NEW added ✗)'}")
+print(f"  add_symbol('<mask>') → {mi}  "
+      f"{'(pre-existing ✓)' if mi == 1023 else '(NEW ✗)'}")
 print(f"  Training dict size     : {len(dt)}")
 
 # ── (b) inference dict ────────────────────────────────────────────────────────
 print("\n── (b) INFERENCE DICT  [dict.txt + setup_task(19 langs) + mask] ──")
 di = Dictionary.load(ROOT_DICT)
-print(f"  After load             : {len(di)} symbols")
+print(f"  After load dict.txt    : {len(di)} symbols")
 for lang in ckpt_langs:
     di.add_symbol(f"[{lang}]")
 print(f"  After 19 lang tokens   : {len(di)} symbols")
 di.add_symbol("<mask>")
 print(f"  Inference dict size    : {len(di)} symbols")
 
-# ── comparison ────────────────────────────────────────────────────────────────
+# ── symbol-by-symbol comparison ───────────────────────────────────────────────
 print("\n── Symbol-by-symbol comparison ──")
-mm_gt_t  = compare_dicts(gt, dt)
-mm_gt_i  = compare_dicts(gt, di)
-mm_t_i   = compare_dicts(dt, di)
+mm_gt_t = compare_dicts(gt, dt)
+mm_gt_i = compare_dicts(gt, di)
+mm_t_i  = compare_dicts(dt, di)
 
 ok = (len(mm_gt_t) == 0 and len(mm_gt_i) == 0 and len(mm_t_i) == 0
       and len(gt) == len(dt) == len(di) == 1024)
@@ -176,9 +197,9 @@ ok = (len(mm_gt_t) == 0 and len(mm_gt_i) == 0 and len(mm_t_i) == 0
 if ok:
     print(f"  ✓ ALL THREE DICTS IDENTICAL — each has 1024 symbols")
 else:
-    print(f"  Sizes: gt={len(gt)}, train={len(dt)}, infer={len(di)}")
-    for label, mm in [("gt vs train", mm_gt_t),
-                      ("gt vs infer", mm_gt_i),
+    print(f"  ✗ MISMATCH  sizes: gt={len(gt)}, train={len(dt)}, infer={len(di)}")
+    for label, mm in [("gt vs train",    mm_gt_t),
+                      ("gt vs infer",    mm_gt_i),
                       ("train vs infer", mm_t_i)]:
         if mm:
             print(f"\n  {label} ({len(mm)} mismatch(es)):")
@@ -187,12 +208,16 @@ else:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# PART 3 — Model load test (strict=True, mbart_large + checkpoint weights)
+# PART 3 — Model load test  (strict=True, mbart_large + checkpoint weights)
 # ═════════════════════════════════════════════════════════════════════════════
 print()
 print(SEP)
 print("PART 3 — FINETUNE-FROM-MODEL LOAD TEST")
 print(SEP)
+
+# Register UTUTPretrainingTask from unit2unit/ before calling setup_task.
+# (In normal training, train.py calls import_user_module early; we do it here.)
+utils.import_user_module(USER_DIR)
 
 state = load_checkpoint_to_cpu(
     CKPT,
@@ -206,7 +231,8 @@ elif "cfg" in state and state["cfg"] is not None:
 else:
     raise RuntimeError(f"No args/cfg. Keys: {list(state.keys())}")
 
-print(f"cfg.model._name         = {cfg.model._name!r}")
+_m3 = cfg.model  # raw Namespace, returned from OmegaConf allow_objects node
+print(f"cfg.model._name         = {getattr(_m3, '_name', None) or getattr(_m3, 'arch', '?')!r}")
 print(f"cfg.task.langs          = {cfg.task.langs!r}")
 print(f"cfg.task.add_lang_token = {cfg.task.add_lang_token!r}")
 print(f"cfg.task.data (patched) = {cfg.task.data!r}")
@@ -214,7 +240,7 @@ print(f"cfg.task.data (patched) = {cfg.task.data!r}")
 task = tasks.setup_task(cfg.task)
 print(f"\nTask type       : {type(task).__name__}")
 print(f"Task dict size  : {len(task.dictionary)}")
-print(f"Task dict last 5:")
+print("Task dict last 5:")
 for idx, sym in dict_tail(task.dictionary, 5):
     print(f"  [{idx}] {sym}")
 
@@ -223,17 +249,19 @@ print(f"\nModel type      : {type(model).__name__}")
 
 ep = model.encoder.embed_positions
 dp = model.decoder.embed_positions
-print(f"encoder.embed_positions type : {type(ep).__name__}")
-print(f"decoder.embed_positions type : {type(dp).__name__}")
+print(f"encoder.embed_positions : {type(ep).__name__}")
+print(f"decoder.embed_positions : {type(dp).__name__}")
 
 ck_e  = state["model"]["encoder.embed_tokens.weight"]
 new_e = model.encoder.embed_tokens.weight
 ck_d  = state["model"]["decoder.embed_tokens.weight"]
 new_d = model.decoder.embed_tokens.weight
 print(f"\nCheckpoint  encoder.embed_tokens : {list(ck_e.shape)}")
-print(f"New model   encoder.embed_tokens : {list(new_e.shape)}  {'✓' if ck_e.shape == new_e.shape else '✗ MISMATCH'}")
+print(f"New model   encoder.embed_tokens : {list(new_e.shape)}  "
+      f"{'✓' if ck_e.shape == new_e.shape else '✗ MISMATCH'}")
 print(f"Checkpoint  decoder.embed_tokens : {list(ck_d.shape)}")
-print(f"New model   decoder.embed_tokens : {list(new_d.shape)}  {'✓' if ck_d.shape == new_d.shape else '✗ MISMATCH'}")
+print(f"New model   decoder.embed_tokens : {list(new_d.shape)}  "
+      f"{'✓' if ck_d.shape == new_d.shape else '✗ MISMATCH'}")
 
 print("\nRunning model.load_state_dict(strict=True) ...")
 try:
