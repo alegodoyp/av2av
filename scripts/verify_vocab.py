@@ -216,8 +216,9 @@ print("PART 3 — FINETUNE-FROM-MODEL LOAD TEST")
 print(SEP)
 
 # Register UTUTPretrainingTask from unit2unit/ before calling setup_task.
-# (In normal training, train.py calls import_user_module early; we do it here.)
-utils.import_user_module(USER_DIR)
+# import_user_module expects an object with .user_dir attribute, not a raw path string.
+from argparse import Namespace as _ArgNS
+utils.import_user_module(_ArgNS(user_dir=USER_DIR))
 
 state = load_checkpoint_to_cpu(
     CKPT,
