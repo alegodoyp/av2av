@@ -15,11 +15,11 @@ sys.path.append(os.getcwd())
 from fairseq import checkpoint_utils, utils
 from util import process_units, extract_audio_from_video
 
-# Register AV-HuBERT task
+# Register AV-HuBERT tasks (including av_hubert_unit_pretraining)
 try:
-    import av2unit.avhubert.hubert_pretraining
+    from av2unit.task import AVHubertUnitPretrainingTask
 except ImportError:
-    print("Warning: Could not import av2unit.avhubert.hubert_pretraining. Task might not be registered.")
+    print("Warning: Could not import av2unit.task. Task 'av_hubert_unit_pretraining' might not be registered.")
 except Exception as e:
     print(f"Warning: Error importing AV-HuBERT task: {e}")
 

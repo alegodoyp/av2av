@@ -40,7 +40,7 @@ class AVHubertUnitDataset(AVHubertDataset):
 
 @register_task("av_hubert_unit_pretraining", dataclass=AVHubertPretrainingConfig)
 class AVHubertUnitPretrainingTask(AVHubertPretrainingTask):
-    def load_dataset(self) -> None:
+    def load_dataset(self, split=None, **kwargs) -> None:
         self.dataset = AVHubertUnitDataset(
             sample_rate=self.cfg.sample_rate,
             normalize=self.cfg.normalize,
