@@ -286,8 +286,10 @@ def extract_units(model, task, video_path, use_cuda=True):
 
     except Exception as e:
         print(f"Error extracting units for {video_path}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
-        
+
     finally:
         if os.path.exists(temp_audio_path):
             try:
@@ -337,26 +339,38 @@ def process_batch(source_files, target_files, output_dir, av2unit_path, tgt_av2u
     src_out = output_dir / f"{split}.{src_lang}"
     tgt_out = output_dir / f"{split}.{tgt_lang}"
     
+    n_success = 0
+    n_total = len(source_files)
     with open(src_out, 'w') as f_src, open(tgt_out, 'w') as f_tgt:
         for src_vid, tgt_vid in zip(source_files, target_files):
             try:
                 print(f"Processing {src_vid} -> {tgt_vid}")
                 src_units = extract_units(src_model, src_task, src_vid, use_cuda)
                 tgt_units = extract_units(tgt_model, tgt_task, tgt_vid, use_cuda)
-                
+
                 if src_units is None or tgt_units is None:
                     print(f"Skipping pair {src_vid}, {tgt_vid} due to extraction failure.")
                     continue
 
                 f_src.write(src_units + "\n")
                 f_tgt.write(tgt_units + "\n")
-                
+
                 # Flush to ensure data is written
                 f_src.flush()
                 f_tgt.flush()
+                n_success += 1
             except Exception as e:
                 print(f"Error processing pair {src_vid}, {tgt_vid}: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
+
+    print(f"Unit extraction: {n_success}/{n_total} pairs succeeded.")
+    if n_success == 0:
+        raise RuntimeError(
+            f"All {n_total} unit extractions failed — text files are empty. "
+            f"Check the 'Error extracting units' messages above for the root cause."
+        )
 
     # Run fairseq-preprocess independently for each language to create monolingual-like structure
     # Expected by MultilingualDenoisingTask: bin/lang/split.bin

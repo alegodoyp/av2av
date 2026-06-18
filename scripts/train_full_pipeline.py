@@ -304,7 +304,28 @@ def main():
             shutil.copy(val_lang_dir / "valid.bin", lang_bin_dir / "valid.bin")
             shutil.copy(val_lang_dir / "valid.idx", lang_bin_dir / "valid.idx")
             
-    # 8. Start fairseq training on the unified binaries
+    # 8. Validate binary files before training
+    missing = []
+    empty = []
+    for lang in [args.src_lang, args.tgt_lang]:
+        for split_name in ["train", "valid"]:
+            for ext in [".bin", ".idx"]:
+                fpath = unified_bin_dir / lang / f"{split_name}{ext}"
+                if not fpath.exists():
+                    missing.append(str(fpath))
+                elif fpath.stat().st_size == 0:
+                    empty.append(str(fpath))
+    if missing:
+        print(f"ERROR: Missing binary files: {missing}")
+    if empty:
+        print(f"ERROR: Empty binary files (0 bytes): {empty}")
+    if missing or empty:
+        raise RuntimeError(
+            "Cannot start training — binary data files are missing or empty. "
+            "Check unit extraction and fairseq-preprocess output above."
+        )
+
+    # 9. Start fairseq training on the unified binaries
     os.makedirs(args.save_dir, exist_ok=True)
     run_training(unified_bin_dir, args.save_dir, args)
     
