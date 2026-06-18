@@ -112,14 +112,13 @@ def run_training(data_bin, save_dir, args):
         "--required-batch-size-multiple", "8",
     ]
     
-    if args.mlflow_tracking_uri:
-        cmd_args.extend(["--mlflow-tracking-uri", args.mlflow_tracking_uri])
-    if args.mlflow_experiment_name:
-        cmd_args.extend(["--mlflow-experiment-name", args.mlflow_experiment_name])
-    
     print(f"Starting training on full dataset in {data_bin}...", flush=True)
-    
+
     env = os.environ.copy()
+    if args.mlflow_tracking_uri:
+        env["MLFLOW_TRACKING_URI"] = args.mlflow_tracking_uri
+    if args.mlflow_experiment_name:
+        env["MLFLOW_EXPERIMENT_NAME"] = args.mlflow_experiment_name
     fairseq_path = os.path.abspath("fairseq")
     env["PYTHONPATH"] = fairseq_path + os.pathsep + env.get("PYTHONPATH", "")
 
