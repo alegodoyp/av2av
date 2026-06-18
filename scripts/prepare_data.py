@@ -186,6 +186,8 @@ def extract_units(model, task, video_path, use_cuda=True):
 
         audio_feats = torch.from_numpy(audio_feats.astype(np.float32))
         video_feats = torch.from_numpy(video_feats.astype(np.float32))
+        print(f"  DEBUG raw feats: audio={audio_feats.shape}, video={video_feats.shape}", flush=True)
+        print(f"  DEBUG stack_order_audio={task.dataset.stack_order_audio}", flush=True)
 
         if task.dataset.normalize and 'audio' in task.dataset.modalities:
             with torch.no_grad():
@@ -193,6 +195,7 @@ def extract_units(model, task, video_path, use_cuda=True):
 
         collated_audios, _, _ = task.dataset.collater_audio([audio_feats], len(audio_feats))
         collated_videos, _, _ = task.dataset.collater_audio([video_feats], len(video_feats))
+        print(f"  DEBUG collated: audio={collated_audios.shape}, video={collated_videos.shape}", flush=True)
 
         sample = {"source": {
             "audio": collated_audios, "video": collated_videos,
@@ -200,6 +203,10 @@ def extract_units(model, task, video_path, use_cuda=True):
         sample = utils.move_to_cuda(sample) if use_cuda else sample
 
         with torch.no_grad():
+            src_a, src_v = sample["source"]["audio"], sample["source"]["video"]
+            feat_a = model.forward_features(src_a, modality='audio')
+            feat_v = model.forward_features(src_v, modality='video')
+            print(f"  DEBUG forward_features: audio={feat_a.shape}, video={feat_v.shape}, fuse={model.modality_fuse}", flush=True)
             x, padding_mask = model.extract_finetune(**sample)
 
             label_embs_list = model.label_embs_concat.split(model.num_classes, 0)
