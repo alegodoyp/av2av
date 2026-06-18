@@ -171,117 +171,57 @@ def load_av2unit_model(model_path, modalities="audio,video", use_cuda=True):
     
     return models[0], task
 
-def get_units(model, sample):
-    """
-    Extracts discrete units from AVHubertModel using the internal label embeddings.
-    """
-    with torch.no_grad():
-        # 1. Extract features (disable masking for inference)
-        # extract_features returns (x, padding_mask) where x is [B, T, D]
-        x, _ = model.extract_features(
-            sample["net_input"]["source"],
-            padding_mask=sample["net_input"]["padding_mask"],
-            mask=False
-        )
-        
-        # 2. Project to final dimension
-        if hasattr(model, 'final_proj') and model.final_proj is not None:
-            x = model.final_proj(x)
-        
-        # 3. Compute logits against label embeddings
-        # model.compute_logits takes (feats, emb_mat)
-        # Default to the first label embedding set (usually used for pretraining)
-        # model.label_embs_concat contains all, but we usually want the first codebook?
-        # AVHubert pretraining usually has 1 codebook unless multi-codebook.
-        # num_classes is a list.
-        
-        if hasattr(model, 'label_embs_concat'):
-             # Assume single codebook or we want the first one
-             # If multiple codebooks, we might need to split label_embs_concat
-             # But for simplicity, let's look at how compute_logits does it in forward
-             # It splits label_embs_concat.
-             
-             num_classes = model.num_classes
-             label_embs_list = model.label_embs_concat.split(num_classes, 0)
-             
-             # We assume we want the units from the first codebook (standard usage)
-             # If untie_final_proj is True, we also index final_proj, but untie is usually False.
-             
-             emb = label_embs_list[0]
-             
-             # If untie_final_proj is True, x needs to be chunked too?
-             # AVHubert defaults check: untie_final_proj=False.
-             
-             logits = model.compute_logits(x, emb) # [B, T, V]
-             
-             # 4. Argmax to get units
-             units = logits.argmax(dim=-1) # [B, T]
-             return units
-        else:
-             print("Error: Model does not have label_embs_concat (not a pretraining model?)")
-             return None
-
 def extract_units(model, task, video_path, use_cuda=True):
     temp_audio_path = os.path.splitext(video_path)[0] + ".temp.wav"
-    
+
     try:
         extract_audio_from_video(video_path, temp_audio_path)
-        
-        # hubert_dataset expects path:id
+
         task_audio_input = temp_audio_path + ":0"
-        
-        # We pass video_path as first arg
-        # Note: load_feature returns numpy arrays
         video_feats, audio_feats = task.dataset.load_feature((video_path, task_audio_input))
-        
+
         if audio_feats is None or video_feats is None:
             print(f"Failed to load features for {video_path}")
             return None
 
-        audio_feats = torch.from_numpy(audio_feats.astype(np.float32)) if audio_feats is not None else None
-        video_feats = torch.from_numpy(video_feats.astype(np.float32)) if video_feats is not None else None
-        
-        if task.dataset.normalize and 'audio' in task.dataset.modalities:
-            if audio_feats is not None:
-                with torch.no_grad():
-                    audio_feats = F.layer_norm(audio_feats, audio_feats.shape[1:])
+        audio_feats = torch.from_numpy(audio_feats.astype(np.float32))
+        video_feats = torch.from_numpy(video_feats.astype(np.float32))
 
-        # Collate (add batch dimension)
-        # collater_audio returns (collated, padding_mask, starts)
-        # We need to wrap in list for collater input
-        collated_audios, padding_mask, _ = task.dataset.collater_audio([audio_feats], len(audio_feats))
-        
-        # For video, we also need to collate
-        # Note: pad_audio might be irrelevant here if single sample, but we reuse logic
+        if task.dataset.normalize and 'audio' in task.dataset.modalities:
+            with torch.no_grad():
+                audio_feats = F.layer_norm(audio_feats, audio_feats.shape[1:])
+
+        collated_audios, _, _ = task.dataset.collater_audio([audio_feats], len(audio_feats))
         collated_videos, _, _ = task.dataset.collater_audio([video_feats], len(video_feats))
 
-        # Construct sample dict matching what model.extract_features expects
-        # Fairseq models usually expect: sample['net_input']['source'], sample['net_input']['padding_mask']
-        # BUT AVHubertModel.forward expects source dictionary
-        
-        sample = {
-            "net_input": {
-                "source": {"audio": collated_audios, "video": collated_videos},
-                "padding_mask": padding_mask
-            }
-        }
-        
+        sample = {"source": {
+            "audio": collated_audios, "video": collated_videos,
+        }}
         sample = utils.move_to_cuda(sample) if use_cuda else sample
 
-        # call custom get_units
-        units_tensor = get_units(model, sample)
-        
-        if units_tensor is None:
-            return None
-            
-        # units_tensor is [B, T]. B=1.
-        units = units_tensor[0].cpu().numpy()
-        
-        # Deduplicate (reduce)
+        with torch.no_grad():
+            x, padding_mask = model.extract_finetune(**sample)
+
+            label_embs_list = model.label_embs_concat.split(model.num_classes, 0)
+            proj_x = model.final_proj(x)
+            if model.untie_final_proj:
+                proj_x_list = proj_x.chunk(len(model.num_classes), dim=-1)
+            else:
+                proj_x_list = [proj_x for _ in range(len(model.num_classes))]
+
+            logit_list = [
+                model.compute_logits(proj, emb).view(-1, num_class)
+                for proj, emb, num_class in zip(proj_x_list, label_embs_list, model.num_classes)
+            ]
+
+            pred_even = logit_list[0].argmax(dim=-1).cpu()
+            pred_odd = logit_list[1].argmax(dim=-1).cpu()
+            pred = torch.stack([pred_even, pred_odd]).transpose(0, 1).reshape(-1)
+
+        units = pred.numpy()
         reduced_units = process_units(units, reduce=True)
-        # Convert to string
         pred_str = " ".join(map(str, reduced_units))
-        
+
         return pred_str
 
     except Exception as e:
