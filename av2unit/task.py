@@ -50,6 +50,8 @@ class AVHubertUnitPretrainingTask(AVHubertPretrainingTask):
             image_crop_size=self.cfg.image_crop_size,
             modalities=self.cfg.modalities,
         )
+        if split is not None:
+            self.datasets[split] = self.dataset
     def inference(self, model, sample):
         x, padding_mask = model.extract_finetune(**sample)
 
