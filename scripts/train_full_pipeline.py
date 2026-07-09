@@ -134,8 +134,10 @@ def run_training(data_bin, save_dir, args):
         "--max-target-positions", "1024",
         "--num-workers", "32",
         "--skip-invalid-size-inputs-valid-test",
-        # required-batch-size-multiple=8 trims batches to the nearest multiple of 8.
-        # With a small dataset (<8 valid samples), every batch becomes empty → crash.
+        # DatasetConfig defaults required_batch_size_multiple=8, which trims any batch
+        # whose size isn't a multiple of 8. With a small dataset (7 valid samples),
+        # 7 % 8 = 7, so batch[:7-7] = [] → 0 batches → crash. Override to 1.
+        "--required-batch-size-multiple", "1",
         # Truncate sequences longer than tokens_per_sample-2 (=1018) instead of
         # filtering them. Without this, all samples from long videos (>40s at 25fps)
         # exceed max_positions=1024 and are silently dropped, leaving empty datasets.
