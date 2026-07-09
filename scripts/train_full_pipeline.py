@@ -63,6 +63,27 @@ def create_extended_dict(output_path):
         f.write("<mask> 1\n")
 
 
+def patch_utut_checkpoint(src_path):
+    """Strip stale SinusoidalPositionalEmbedding buffers so strict=True load works.
+
+    utut_sts_ft.pt was saved with an older fairseq that kept _float_tensor as a
+    persistent buffer on SinusoidalPositionalEmbedding. Current fairseq no longer
+    registers it, so it's absent from the model's state_dict but present in the
+    checkpoint — causing strict=True to raise "unexpected keys". We remove those
+    two keys and write a patched copy next to the original.
+    """
+    import tempfile
+    patched_path = os.path.join(tempfile.gettempdir(), "utut_sts_ft_patched.pt")
+    state = torch.load(src_path, map_location="cpu")
+    stale_keys = [k for k in state.get("model", {}) if k.endswith(".embed_positions._float_tensor")]
+    for k in stale_keys:
+        del state["model"][k]
+    if stale_keys:
+        print(f"Patched checkpoint: removed stale buffer keys {stale_keys}")
+    torch.save(state, patched_path)
+    return patched_path
+
+
 def run_training(data_bin, save_dir, args):
     """Invokes fairseq-train on the complete prepared data."""
     try:
@@ -70,13 +91,18 @@ def run_training(data_bin, save_dir, args):
     except ValueError:
         data_bin_rel = str(data_bin)
 
+    # Strip stale _float_tensor buffers from the pretrained checkpoint so that
+    # --finetune-from-model can load it with strict=True (trainer.py:586).
+    finetune_ckpt = patch_utut_checkpoint("checkpoints/utut_sts_ft.pt")
+
     cmd_args = [
         data_bin_rel,
         "--save-dir", str(save_dir),
         "--task", "utut_pretraining",
-        # mbart_large matches the utut_sts_ft.pt checkpoint architecture exactly.
-        # Encoder/decoder: 12 layers, dim=1024, heads=16, ffn=4096, normalize_before=True,
-        # sinusoidal pos-embeddings (learned_pos not passed → None → falsy → sinusoidal).
+        # Architecture exactly matches utut_sts_ft.pt (confirmed via diagnose_utut_ckpt.py):
+        # 12 layers, dim=1024, heads=16, ffn=4096, normalize_before=True,
+        # sinusoidal pos (encoder_learned_pos=False via TransformerConfig default),
+        # no layernorm_embedding (layernorm_embedding=False via TransformerConfig default).
         "--arch", "mbart_large",
         # Pass only the two data languages; all 19 lang tokens are pre-baked in dict_full.txt
         # so add_lang_token just looks up existing indices without growing the vocab.
@@ -101,7 +127,7 @@ def run_training(data_bin, save_dir, args):
         "--validate-interval", str(args.validate_interval),
         "--patience", "10",
         "--no-epoch-checkpoints",
-        "--finetune-from-model", "checkpoints/utut_sts_ft.pt",
+        "--finetune-from-model", finetune_ckpt,
         "--user-dir", os.path.join(os.getcwd(), "unit2unit"),
         "--tokens-per-sample", "1020",
         "--sample-break-mode", "eos",
