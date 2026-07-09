@@ -99,11 +99,10 @@ def run_training(data_bin, save_dir, args):
         data_bin_rel,
         "--save-dir", str(save_dir),
         "--task", "utut_pretraining",
-        # Architecture exactly matches utut_sts_ft.pt (confirmed via diagnose_utut_ckpt.py):
+        # utut_large is registered in unit2unit/model.py and matches utut_sts_ft.pt exactly:
         # 12 layers, dim=1024, heads=16, ffn=4096, normalize_before=True,
-        # sinusoidal pos (encoder_learned_pos=False via TransformerConfig default),
-        # no layernorm_embedding (layernorm_embedding=False via TransformerConfig default).
-        "--arch", "mbart_large",
+        # sinusoidal pos (learned_pos=False), no layernorm_embedding.
+        "--arch", "utut_large",
         # Pass only the two data languages; all 19 lang tokens are pre-baked in dict_full.txt
         # so add_lang_token just looks up existing indices without growing the vocab.
         "--langs", f"{args.src_lang},{args.tgt_lang}",
