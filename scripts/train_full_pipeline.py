@@ -135,6 +135,10 @@ def run_training(data_bin, save_dir, args):
         "--num-workers", "32",
         "--skip-invalid-size-inputs-valid-test",
         "--required-batch-size-multiple", "8",
+        # fairseq defaults distributed_world_size to torch.cuda.device_count().
+        # With a small valid set, ShardedIterator can give 0 batches per shard.
+        # Force single-process training here; remove for multi-GPU production runs.
+        "--distributed-world-size", "1",
     ]
     
     print(f"Starting training on full dataset in {data_bin}...", flush=True)
