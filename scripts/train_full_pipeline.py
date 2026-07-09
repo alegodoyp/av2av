@@ -132,7 +132,7 @@ def run_training(data_bin, save_dir, args):
         "--sample-break-mode", "eos",
         "--max-source-positions", "1024",
         "--max-target-positions", "1024",
-        "--num-workers", "32",
+        "--num-workers", "1",
         "--skip-invalid-size-inputs-valid-test",
         # DatasetConfig defaults required_batch_size_multiple=8, which trims any batch
         # whose size isn't a multiple of 8. With a small dataset (7 valid samples),
