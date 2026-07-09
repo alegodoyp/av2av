@@ -38,7 +38,7 @@ def get_parser():
     # Model args
     parser.add_argument("--arch", default="conformer_utut", help="Model architecture")
     parser.add_argument("--max-tokens", type=int, default=200000)
-    parser.add_argument("--update-freq", type=int, default=25)
+    parser.add_argument("--update-freq", type=int, default=1)
     parser.add_argument("--max-epoch", type=int, default=100, help="Maximum number of training epochs")
     parser.add_argument("--validate-interval", type=int, default=1)
     
@@ -134,7 +134,8 @@ def run_training(data_bin, save_dir, args):
         "--max-target-positions", "1024",
         "--num-workers", "32",
         "--skip-invalid-size-inputs-valid-test",
-        "--required-batch-size-multiple", "8",
+        # required-batch-size-multiple=8 trims batches to the nearest multiple of 8.
+        # With a small dataset (<8 valid samples), every batch becomes empty → crash.
         # Truncate sequences longer than tokens_per_sample-2 (=1018) instead of
         # filtering them. Without this, all samples from long videos (>40s at 25fps)
         # exceed max_positions=1024 and are silently dropped, leaving empty datasets.
