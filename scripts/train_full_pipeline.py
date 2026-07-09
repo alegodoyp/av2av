@@ -135,6 +135,11 @@ def run_training(data_bin, save_dir, args):
         "--num-workers", "32",
         "--skip-invalid-size-inputs-valid-test",
         "--required-batch-size-multiple", "8",
+        # Truncate sequences longer than tokens_per_sample-2 (=1018) instead of
+        # filtering them. Without this, all samples from long videos (>40s at 25fps)
+        # exceed max_positions=1024 and are silently dropped, leaving empty datasets.
+        # Empty shorten_data_split_list (default) applies to both train and valid.
+        "--shorten-method", "truncate",
         # fairseq defaults distributed_world_size to torch.cuda.device_count().
         # With a small valid set, ShardedIterator can give 0 batches per shard.
         # Force single-process training here; remove for multi-GPU production runs.
