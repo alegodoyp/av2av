@@ -19,8 +19,6 @@ synthetic_targets/
 temp_synthetic_gen/
 test_videos_result/
 test_videos_tempo/
-results/
-samples/
 test_data/
 result_data/
 
