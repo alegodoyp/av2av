@@ -4,6 +4,7 @@ python-speech-features==0.6
 scipy==1.10.0
 opencv-python==4.5.4.60
 librosa==0.8.1
+webrtcvad
 soundfile
 av
 ffmpeg-python

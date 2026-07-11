@@ -11,15 +11,38 @@ from util import process_units, save_unit
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+# Must match scripts/train_full_pipeline.py's create_extended_dict() exactly:
+# this order was reverse-engineered to match utut_sts_ft.pt's embedding table.
+# fairseq's MultilingualDenoisingTask.setup_task (which UTUTPretrainingTask
+# inherits) only adds dictionary symbols for cfg.task.langs (e.g. "pt,en" for
+# a checkpoint fine-tuned with --langs pt,en). Loading with the plain,
+# unit-only dict.txt would dynamically add just those 2 lang tokens at the
+# wrong indices, mismatching the checkpoint's embedding rows. Using this
+# extended dict (all 19 langs pre-baked) makes that add a no-op lookup that
+# lands on the same indices used at training time, for both the original
+# pretrained checkpoint and any fine-tune derived from it.
+_LANG_ORDER = ["en", "es", "fr", "it", "pt", "el", "ru", "cs", "da", "de",
+               "fi", "hr", "hu", "lt", "nl", "pl", "ro", "sk", "sl"]
+
+def _ensure_extended_dict_dir():
+    dict_dir = os.path.join(REPO, "dict_data")
+    dict_path = os.path.join(dict_dir, "dict.txt")
+    if not os.path.exists(dict_path):
+        os.makedirs(dict_dir, exist_ok=True)
+        with open(dict_path, "w") as f:
+            for i in range(1000):
+                f.write(f"{i} 1\n")
+            for lang in _LANG_ORDER:
+                f.write(f"[{lang}] 1\n")
+            f.write("<mask> 1\n")
+    return dict_dir
+
 def load_model(model_path, src_lang, tgt_lang, use_cuda=False):
-    # Override 'data' to the repo root, where dict.txt lives. Checkpoints
-    # store the training-time task.data path (e.g. a scratch dir on the
-    # training machine), which doesn't exist at inference time. dict.txt
-    # is identical across the pretrained and fine-tuned checkpoints (see
-    # scripts/verify_vocab.py), so pointing 'data' at REPO works for both.
+    # Checkpoints store the training-time task.data path (e.g. a scratch dir
+    # on the training machine), which doesn't exist at inference time.
     models, cfg, task = checkpoint_utils.load_model_ensemble_and_task(
         [model_path],
-        arg_overrides={"user_dir": "unit2unit", "data": REPO}
+        arg_overrides={"user_dir": "unit2unit", "data": _ensure_extended_dict_dir()}
     )
 
     # Fix seed for stochastic decoding
