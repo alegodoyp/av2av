@@ -29,12 +29,17 @@ def load_face_restorer(use_cuda=True):
         return None
 
 
-def restore_frame(restorer, frame_bgr):
+def restore_frame(restorer, frame_bgr, weight=0.2):
+    # weight balances fidelity-to-input vs. GFPGAN's generative prior: higher
+    # stays closer to the (blurry) source, lower leans harder into GFPGAN's
+    # own detail synthesis. Default 0.5 was under-restoring the renderer's
+    # soft 96x96-native output, so this pushes toward stronger restoration.
     if restorer is None:
         return frame_bgr
     try:
         _, _, restored = restorer.enhance(
-            frame_bgr, has_aligned=False, only_center_face=True, paste_back=True
+            frame_bgr, has_aligned=False, only_center_face=True, paste_back=True,
+            weight=weight,
         )
         return restored if restored is not None else frame_bgr
     except Exception as e:
