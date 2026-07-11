@@ -95,7 +95,7 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
         window = []
         for img, (x1, y1, x2, y2) in zip(frames, crops):
             img = img[max(int(y1), 0): int(y2), max(int(x1), 0):int(x2)]
-            img = cv2.resize(img, (96, 96))
+            img = cv2.resize(img, (96, 96), interpolation=cv2.INTER_AREA)
             window.append(img)
         return window 
 

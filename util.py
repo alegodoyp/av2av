@@ -4,6 +4,8 @@ import cv2
 import ffmpeg
 import imageio_ffmpeg
 
+from face_restore import restore_frame
+
 def process_units(units, reduce=False):
     if not reduce:
         return units
@@ -55,7 +57,7 @@ def extract_audio_from_video(video_path, save_audio_path, sampling_rate=16000):
         print(f"FFmpeg error: {e.stderr.decode('utf8')}")
         raise e
 
-def save_video(audio, video, full_video, bbox, save_video_path, sampling_rate=16000, fps=25, vcodec="libx264"):
+def save_video(audio, video, full_video, bbox, save_video_path, sampling_rate=16000, fps=25, vcodec="libx264", restorer=None):
     os.makedirs(os.path.dirname(save_video_path), exist_ok=True)
     temp_audio_path = os.path.splitext(save_video_path)[0]+".temp.wav"
     temp_video_path = os.path.splitext(save_video_path)[0]+".temp.avi"
@@ -67,13 +69,15 @@ def save_video(audio, video, full_video, bbox, save_video_path, sampling_rate=16
     
     for p, f, c in zip(video, full_video, bbox):
         x1, y1, x2, y2 = [max(int(_), 0) for _ in c]
-        p = cv2.resize(p, (x2 - x1, y2 - y1))
+        p = cv2.resize(p, (x2 - x1, y2 - y1), interpolation=cv2.INTER_CUBIC)
         try:
             f[y1:y2, x1:x2] = p
         except:
             height, width, c = f[y1:y2, x1:x2].shape
-            p = cv2.resize(p, (width, height))
+            p = cv2.resize(p, (width, height), interpolation=cv2.INTER_CUBIC)
             f[y1:y2, x1:x2] = p
+
+        f = restore_frame(restorer, f)
         out.write(f)
 
     out.release()

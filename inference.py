@@ -18,6 +18,7 @@ from unit2unit.inference import load_model as load_unit2unit_model
 from unit2av.inference import load_model as load_unit2av_model, load_speaker_encoder_model
 
 from util import process_units, extract_audio_from_video, save_video
+from face_restore import load_face_restorer
 
 def extract_bbox(video_path, save_path):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -295,6 +296,7 @@ def main(args):
     cfg_path = os.path.join("unit2av", "config.json")
     unit2av_model = load_unit2av_model(args.unit2av_path, cfg_path, args.tgt_lang, use_cuda=use_cuda, fp16=True)
     speaker_encoder_model = load_speaker_encoder_model(os.path.join("unit2av", "encoder.pt"), use_cuda=use_cuda)
+    face_restorer = None if args.no_face_restore else load_face_restorer(use_cuda=use_cuda)
 
     pipeline = AVSpeechToAVSpeechPipeline(
         av2unit_model, av2unit_task,
@@ -318,7 +320,7 @@ def main(args):
     tgt_unit = pipeline.process_unit2unit(src_unit)
     tgt_audio, tgt_video, full_video, bbox = pipeline.process_unit2av(tgt_unit, temp_audio_path, args.in_vid_path, bbox_path)
 
-    save_video(tgt_audio, tgt_video, full_video, bbox, args.out_vid_path)
+    save_video(tgt_audio, tgt_video, full_video, bbox, args.out_vid_path, restorer=face_restorer)
 
     os.remove(temp_audio_path)
 
@@ -354,6 +356,10 @@ def cli_main():
         "--unit2av-path", type=str, required=True, help="path to the Unit AV Renderer"
     )
     parser.add_argument("--cpu", action="store_true", help="run on CPU")
+    parser.add_argument(
+        "--no-face-restore", action="store_true",
+        help="Disable GFPGAN face restoration post-process (enabled by default)"
+    )
     args = parser.parse_args()
     main(args)
 

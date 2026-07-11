@@ -5,6 +5,7 @@ scipy==1.10.0
 opencv-python==4.5.4.60
 librosa==0.8.1
 webrtcvad
+gfpgan
 soundfile
 av
 ffmpeg-python
