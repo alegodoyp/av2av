@@ -9,8 +9,8 @@ recover detail the renderer's low output resolution can't provide.
 def load_face_restorer(use_cuda=True):
     try:
         from gfpgan import GFPGANer
-    except ImportError:
-        print("Warning: gfpgan not installed (pip install gfpgan). Skipping face restoration.")
+    except ImportError as e:
+        print(f"Warning: could not import gfpgan ({e}). Skipping face restoration.")
         return None
 
     device = "cuda" if use_cuda else "cpu"
