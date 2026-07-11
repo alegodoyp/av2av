@@ -68,13 +68,22 @@ def save_video(audio, video, full_video, bbox, save_video_path, sampling_rate=16
     out = cv2.VideoWriter(temp_video_path, cv2.VideoWriter_fourcc(*'DIVX'), fps, (frame_w, frame_h))
     
     for p, f, c in zip(video, full_video, bbox):
-        x1, y1, x2, y2 = [max(int(_), 0) for _ in c]
-        p = cv2.resize(p, (x2 - x1, y2 - y1), interpolation=cv2.INTER_CUBIC)
+        x1, y1, x2, y2 = [int(_) for _ in c]
+        x1, y1 = max(x1, 0), max(y1, 0)
+        x2, y2 = min(x2, frame_w), min(y2, frame_h)
+        width, height = x2 - x1, y2 - y1
+
+        p = cv2.resize(p, (width, height), interpolation=cv2.INTER_CUBIC)
+
+        # Poisson (seamless) blend instead of a hard pixel copy: a direct
+        # f[y1:y2, x1:x2] = p paste leaves a visible rectangular seam with a
+        # tone/exposure mismatch against the surrounding skin. seamlessClone
+        # blends both the edge and the color gradient at the boundary.
+        center = (x1 + width // 2, y1 + height // 2)
+        mask = np.full((height, width), 255, dtype=np.uint8)
         try:
-            f[y1:y2, x1:x2] = p
-        except:
-            height, width, c = f[y1:y2, x1:x2].shape
-            p = cv2.resize(p, (width, height), interpolation=cv2.INTER_CUBIC)
+            f = cv2.seamlessClone(p, f, mask, center, cv2.NORMAL_CLONE)
+        except cv2.error:
             f[y1:y2, x1:x2] = p
 
         f = restore_frame(restorer, f)
