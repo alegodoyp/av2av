@@ -1,4 +1,5 @@
 import argparse
+import os
 import numpy as np
 import torch
 
@@ -8,13 +9,17 @@ from fairseq_cli.generate import get_symbols_to_strip_from_output
 from unit2unit.task import UTUTPretrainingTask
 from util import process_units, save_unit
 
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 def load_model(model_path, src_lang, tgt_lang, use_cuda=False):
-    # Do not override 'data': the checkpoint's original args.data ('./')
-    # loads ./dict.txt from CWD. Overriding with 'data' crashes because
-    # data/dict.txt does not exist.
+    # Override 'data' to the repo root, where dict.txt lives. Checkpoints
+    # store the training-time task.data path (e.g. a scratch dir on the
+    # training machine), which doesn't exist at inference time. dict.txt
+    # is identical across the pretrained and fine-tuned checkpoints (see
+    # scripts/verify_vocab.py), so pointing 'data' at REPO works for both.
     models, cfg, task = checkpoint_utils.load_model_ensemble_and_task(
         [model_path],
-        arg_overrides={"user_dir": "unit2unit"}
+        arg_overrides={"user_dir": "unit2unit", "data": REPO}
     )
 
     # Fix seed for stochastic decoding
