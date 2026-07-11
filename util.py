@@ -78,9 +78,19 @@ def save_video(audio, video, full_video, bbox, save_video_path, sampling_rate=16
         # Poisson (seamless) blend instead of a hard pixel copy: a direct
         # f[y1:y2, x1:x2] = p paste leaves a visible rectangular seam with a
         # tone/exposure mismatch against the surrounding skin. seamlessClone
-        # blends both the edge and the color gradient at the boundary.
+        # blends the color gradient at the boundary, but a full-rectangle
+        # mask still shows a faint edge (esp. at the corners) where sharp
+        # background texture meets the renderer's soft interior. An inset
+        # ellipse follows the face's shape and keeps the seam off the
+        # rectangle's corners entirely.
         center = (x1 + width // 2, y1 + height // 2)
-        mask = np.full((height, width), 255, dtype=np.uint8)
+        mask = np.zeros((height, width), dtype=np.uint8)
+        cv2.ellipse(
+            mask,
+            (width // 2, height // 2),
+            (max(int(width * 0.42), 1), max(int(height * 0.42), 1)),
+            0, 0, 360, 255, -1,
+        )
         try:
             f = cv2.seamlessClone(p, f, mask, center, cv2.NORMAL_CLONE)
         except cv2.error:
