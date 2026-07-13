@@ -19,6 +19,7 @@ from unit2av.inference import load_model as load_unit2av_model, load_speaker_enc
 
 from util import process_units, extract_audio_from_video, save_video
 from face_restore import load_face_restorer
+from wav2lip_render import load_wav2lip_model, render_video as render_wav2lip_video
 
 def extract_bbox(video_path, save_path):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -297,6 +298,9 @@ def main(args):
     unit2av_model = load_unit2av_model(args.unit2av_path, cfg_path, args.tgt_lang, use_cuda=use_cuda, fp16=True)
     speaker_encoder_model = load_speaker_encoder_model(os.path.join("unit2av", "encoder.pt"), use_cuda=use_cuda)
     face_restorer = None if args.no_face_restore else load_face_restorer(use_cuda=use_cuda)
+    wav2lip_model = None
+    if args.video_renderer == "wav2lip":
+        wav2lip_model = load_wav2lip_model(args.wav2lip_checkpoint, use_cuda=use_cuda)
 
     pipeline = AVSpeechToAVSpeechPipeline(
         av2unit_model, av2unit_task,
@@ -319,6 +323,15 @@ def main(args):
 
     tgt_unit = pipeline.process_unit2unit(src_unit)
     tgt_audio, tgt_video, full_video, bbox = pipeline.process_unit2av(tgt_unit, temp_audio_path, args.in_vid_path, bbox_path)
+
+    if wav2lip_model is not None:
+        # Replace unit2av's own (zero-shot, unit-conditioned) generated patches
+        # with Wav2Lip's official checkpoint, driven by the same synthesized
+        # audio. full_video/bbox (background frames + paste-back boxes) are
+        # unchanged and still go through the same save_video() blending.
+        tgt_video = render_wav2lip_video(
+            wav2lip_model, tgt_audio, full_video, bbox, fps=25, use_cuda=use_cuda
+        )
 
     save_video(tgt_audio, tgt_video, full_video, bbox, args.out_vid_path, restorer=face_restorer)
 
@@ -359,6 +372,17 @@ def cli_main():
     parser.add_argument(
         "--no-face-restore", action="store_true",
         help="Disable GFPGAN face restoration post-process (enabled by default)"
+    )
+    parser.add_argument(
+        "--video-renderer", type=str, default="unit2av",
+        choices=["unit2av", "wav2lip"],
+        help="'unit2av' uses this repo's own zero-shot renderer (default). "
+             "'wav2lip' drives Wav2Lip's official wav2lip_gan.pth from the "
+             "same synthesized audio instead."
+    )
+    parser.add_argument(
+        "--wav2lip-checkpoint", type=str, default="checkpoints/wav2lip_gan.pth",
+        help="path to Wav2Lip's official checkpoint (only used with --video-renderer wav2lip)"
     )
     args = parser.parse_args()
     main(args)
