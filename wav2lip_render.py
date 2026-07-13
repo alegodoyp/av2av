@@ -27,12 +27,22 @@ IMG_SIZE = 96
 
 def load_wav2lip_model(checkpoint_path, use_cuda=True):
     device = "cuda" if use_cuda else "cpu"
-    model = Wav2Lip()
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    state_dict = checkpoint["state_dict"]
-    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-    model.load_state_dict(state_dict)
-    model = model.to(device)
+
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        state_dict = {k.replace("module.", ""): v for k, v in checkpoint["state_dict"].items()}
+        model = Wav2Lip()
+        model.load_state_dict(state_dict)
+        model = model.to(device)
+    else:
+        # This release of wav2lip_gan.pth was saved as a TorchScript archive
+        # rather than a plain state_dict. torch.load already detected that
+        # and dispatched to torch.jit.load internally, so `checkpoint` here
+        # is already a loaded, callable RecursiveScriptModule -- use it as
+        # the model directly instead of trying to index into it as a dict.
+        print("wav2lip checkpoint is a TorchScript archive; using it directly.")
+        model = checkpoint
+
     return model.eval()
 
 
