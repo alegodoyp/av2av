@@ -327,9 +327,10 @@ def main(args):
     if wav2lip_model is not None:
         # Replace unit2av's own (zero-shot, unit-conditioned) generated patches
         # with Wav2Lip's official checkpoint, driven by the same synthesized
-        # audio. full_video/bbox (background frames + paste-back boxes) are
-        # unchanged and still go through the same save_video() blending.
-        tgt_video = render_wav2lip_video(
+        # audio. render_video pads/smooths `bbox` to match Wav2Lip's own
+        # crop conventions, so we must paste back with those same boxes
+        # (returned here), not the original ones.
+        tgt_video, bbox = render_wav2lip_video(
             wav2lip_model, tgt_audio, full_video, bbox, fps=25, use_cuda=use_cuda
         )
 

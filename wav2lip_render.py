@@ -46,6 +46,36 @@ def load_wav2lip_model(checkpoint_path, use_cuda=True):
     return model.eval()
 
 
+def _pad_and_smooth_boxes(crops, frame_shape, pad_ratio=0.15, smooth_window=5):
+    """Matches Wav2Lip's own face-crop conventions (see their inference.py
+    face_detect()/get_smoothened_boxes()): per-frame face boxes are detected
+    independently and wobble slightly frame to frame even on a static head,
+    and their default padding extends the box (mainly downward) to make sure
+    the chin is included -- the model was trained on crops built that way.
+    We pad proportionally to box size (rather than their fixed 10px) so it
+    scales with source resolution, then smooth over a short temporal window.
+    """
+    h, w = frame_shape[:2]
+    padded = []
+    for x1, y1, x2, y2 in crops:
+        box_h, box_w = y2 - y1, x2 - x1
+        pad_y, pad_x = box_h * pad_ratio, box_w * pad_ratio * 0.3
+        padded.append([
+            max(x1 - pad_x, 0),
+            max(y1 - pad_x, 0),
+            min(x2 + pad_x, w),
+            min(y2 + pad_y, h),
+        ])
+    boxes = np.array(padded, dtype=np.float32)
+
+    smoothed = boxes.copy()
+    n = len(boxes)
+    for i in range(n):
+        window = boxes[i:i + smooth_window] if i + smooth_window <= n else boxes[max(0, n - smooth_window):]
+        smoothed[i] = window.mean(axis=0)
+    return smoothed
+
+
 def _mel_chunks_for_frames(wav, num_frames, fps):
     mel = w2l_audio.melspectrogram(wav)
     if np.isnan(mel.reshape(-1)).sum() > 0:
@@ -74,17 +104,21 @@ def render_video(model, wav, frames, crops, fps=25, use_cuda=True, batch_size=32
 
     frames: full background frames (BGR uint8), same convention as
         unit2av's `full_video`.
-    crops: per-frame (x1, y1, x2, y2) face boxes -- reuse the same ones used
-        for pasting back, so the input crop matches the paste region.
+    crops: per-frame (x1, y1, x2, y2) face boxes.
 
-    Returns an (N, 96, 96, 3) uint8 array, a drop-in replacement for
-    unit2av.model.UnitAVRenderer.forward()'s `gen_vid`.
+    Returns (gen_vid, used_crops): gen_vid is an (N, 96, 96, 3) uint8 array,
+    a drop-in replacement for unit2av.model.UnitAVRenderer.forward()'s
+    `gen_vid`. used_crops is the padded/smoothed version of `crops` actually
+    used to build the input -- the caller must paste back with these same
+    boxes (not the original `crops`), or the generated patch's framing won't
+    match the region it gets resized into.
     """
     device = "cuda" if use_cuda else "cpu"
     mel_chunks = _mel_chunks_for_frames(np.asarray(wav, dtype=np.float32), len(frames), fps)
 
     n = min(len(frames), len(crops), len(mel_chunks))
-    frames, crops, mel_chunks = frames[:n], crops[:n], mel_chunks[:n]
+    frames, mel_chunks = frames[:n], mel_chunks[:n]
+    crops = _pad_and_smooth_boxes(crops[:n], frames.shape[1:3])
 
     outputs = [None] * n
     img_batch, mel_batch, idx_batch = [], [], []
@@ -127,4 +161,4 @@ def render_video(model, wav, frames, crops, fps=25, use_cuda=True, batch_size=32
             _flush()
     _flush()
 
-    return np.stack(outputs, axis=0)
+    return np.stack(outputs, axis=0), crops
