@@ -20,6 +20,7 @@ from unit2av.inference import load_model as load_unit2av_model, load_speaker_enc
 from util import process_units, extract_audio_from_video, save_video
 from face_restore import load_face_restorer
 from wav2lip_render import load_wav2lip_model, render_video as render_wav2lip_video
+from latentsync_render import render_video_latentsync
 
 def extract_bbox(video_path, save_path):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -297,7 +298,11 @@ def main(args):
     cfg_path = os.path.join("unit2av", "config.json")
     unit2av_model = load_unit2av_model(args.unit2av_path, cfg_path, args.tgt_lang, use_cuda=use_cuda, fp16=True)
     speaker_encoder_model = load_speaker_encoder_model(os.path.join("unit2av", "encoder.pt"), use_cuda=use_cuda)
-    face_restorer = None if args.no_face_restore else load_face_restorer(use_cuda=use_cuda)
+    # GFPGAN restoration and Wav2Lip both feed into util.save_video(); LatentSync
+    # produces a finished, audio-muxed video on its own and skips both.
+    face_restorer = None
+    if args.video_renderer != "latentsync" and not args.no_face_restore:
+        face_restorer = load_face_restorer(use_cuda=use_cuda)
     wav2lip_model = None
     if args.video_renderer == "wav2lip":
         wav2lip_model = load_wav2lip_model(args.wav2lip_checkpoint, use_cuda=use_cuda)
@@ -324,17 +329,30 @@ def main(args):
     tgt_unit = pipeline.process_unit2unit(src_unit)
     tgt_audio, tgt_video, full_video, bbox = pipeline.process_unit2av(tgt_unit, temp_audio_path, args.in_vid_path, bbox_path)
 
-    if wav2lip_model is not None:
-        # Replace unit2av's own (zero-shot, unit-conditioned) generated patches
-        # with Wav2Lip's official checkpoint, driven by the same synthesized
-        # audio. render_video pads/smooths `bbox` to match Wav2Lip's own
-        # crop conventions, so we must paste back with those same boxes
-        # (returned here), not the original ones.
-        tgt_video, bbox = render_wav2lip_video(
-            wav2lip_model, tgt_audio, full_video, bbox, fps=25, use_cuda=use_cuda
+    if args.video_renderer == "latentsync":
+        # LatentSync does its own face detection/alignment/diffusion sampling/
+        # paste-back as a single black-box pipeline (run in its own conda env
+        # via subprocess) and writes a finished, audio-muxed video directly --
+        # unlike unit2av/wav2lip, there's no patch to feed through save_video().
+        render_video_latentsync(
+            tgt_audio, full_video, args.out_vid_path,
+            repo_dir=args.latentsync_repo,
+            python_bin=args.latentsync_python,
+            unet_config_path=args.latentsync_config,
+            ckpt_path=args.latentsync_ckpt,
         )
+    else:
+        if wav2lip_model is not None:
+            # Replace unit2av's own (zero-shot, unit-conditioned) generated
+            # patches with Wav2Lip's official checkpoint, driven by the same
+            # synthesized audio. render_video pads/smooths `bbox` to match
+            # Wav2Lip's own crop conventions, so we must paste back with
+            # those same boxes (returned here), not the original ones.
+            tgt_video, bbox = render_wav2lip_video(
+                wav2lip_model, tgt_audio, full_video, bbox, fps=25, use_cuda=use_cuda
+            )
 
-    save_video(tgt_audio, tgt_video, full_video, bbox, args.out_vid_path, restorer=face_restorer)
+        save_video(tgt_audio, tgt_video, full_video, bbox, args.out_vid_path, restorer=face_restorer)
 
     os.remove(temp_audio_path)
 
@@ -376,16 +394,37 @@ def cli_main():
     )
     parser.add_argument(
         "--video-renderer", type=str, default="unit2av",
-        choices=["unit2av", "wav2lip"],
+        choices=["unit2av", "wav2lip", "latentsync"],
         help="'unit2av' uses this repo's own zero-shot renderer (default). "
              "'wav2lip' drives Wav2Lip's official wav2lip_gan.pth from the "
-             "same synthesized audio instead."
+             "same synthesized audio instead. 'latentsync' drives ByteDance's "
+             "LatentSync diffusion renderer (needs its own conda env, see "
+             "--latentsync-python)."
     )
     parser.add_argument(
         "--wav2lip-checkpoint", type=str, default="checkpoints/wav2lip_gan.pth",
         help="path to Wav2Lip's official checkpoint (only used with --video-renderer wav2lip)"
     )
+    parser.add_argument(
+        "--latentsync-repo", type=str, default="latentsync_repo",
+        help="path to a local clone of bytedance/LatentSync (only used with --video-renderer latentsync)"
+    )
+    parser.add_argument(
+        "--latentsync-python", type=str, default=None,
+        help="path to the LatentSync repo's own conda env python executable, "
+             "e.g. ~/miniconda3/envs/latentsync/bin/python (required with --video-renderer latentsync)"
+    )
+    parser.add_argument(
+        "--latentsync-config", type=str, default="configs/unet/stage2_512.yaml",
+        help="LatentSync UNet config, relative to --latentsync-repo (1.6/512px by default)"
+    )
+    parser.add_argument(
+        "--latentsync-ckpt", type=str, default="checkpoints/latentsync_unet.pt",
+        help="LatentSync checkpoint path, relative to --latentsync-repo"
+    )
     args = parser.parse_args()
+    if args.video_renderer == "latentsync" and not args.latentsync_python:
+        parser.error("--latentsync-python is required when --video-renderer latentsync")
     main(args)
 
 if __name__ == "__main__":

@@ -29,14 +29,15 @@ def load_face_restorer(use_cuda=True):
         return None
 
 
-def restore_frame(restorer, frame_bgr, weight=0.8):
+def restore_frame(restorer, frame_bgr, weight=0.6):
     # weight balances fidelity-to-input vs. GFPGAN's generative prior: higher
     # stays closer to the source, lower leans harder into GFPGAN's own
-    # detail synthesis. The mouth/teeth region here is already a GAN
-    # hallucination from the unit2av renderer, so a low weight makes GFPGAN
-    # hallucinate a *second* time on top of that (invented, mismatched
-    # teeth). Bias toward fidelity so GFPGAN mainly sharpens/denoises
-    # instead of re-inventing mouth structure.
+    # detail synthesis. 0.8 was chosen when the mouth came from unit2av's
+    # renderer, whose structure was often wrong -- low weight made GFPGAN
+    # hallucinate a *second* time on top of that. Wav2Lip's mouth structure
+    # is more trustworthy, so that constraint is looser; 0.6 leans a bit
+    # more into GFPGAN's detail synthesis to recover sharper teeth/lips
+    # without giving up as much fidelity as we would at 0.2-0.3.
     if restorer is None:
         return frame_bgr
     try:
