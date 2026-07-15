@@ -72,7 +72,8 @@ def render_video_latentsync(
         "--guidance_scale", str(guidance_scale),
         "--enable_deepcache",
     ]
-    try:
-        subprocess.run(cmd, cwd=repo_dir, check=True)
-    finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
+    # Only clean up the driving video/audio on success -- on failure they're
+    # left in place under work_dir for debugging (e.g. checking whether the
+    # written video actually shows a normal, correctly-colored face).
+    subprocess.run(cmd, cwd=repo_dir, check=True)
+    shutil.rmtree(work_dir, ignore_errors=True)
