@@ -23,17 +23,35 @@ import shutil
 import subprocess
 
 import numpy as np
-import cv2
+import imageio_ffmpeg
 
 from util import save_audio
 
 
 def _write_silent_video(frames_bgr, out_path, fps=25):
+    # cv2.VideoWriter with the mp4v codec has a known quirk where the first
+    # frame comes out black/corrupted on some encoder backends (encoder
+    # warm-up timing) -- confirmed here: frame 0 of a cv2.VideoWriter-written
+    # clip was solid black while every later frame was fine, which is exactly
+    # why LatentSync's own face detector failed on frame 0. Piping raw frames
+    # into a real ffmpeg process avoids OpenCV's built-in codec entirely.
     h, w = frames_bgr.shape[1], frames_bgr.shape[2]
-    out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+    cmd = [
+        ffmpeg_exe, "-y", "-loglevel", "error",
+        "-f", "rawvideo", "-vcodec", "rawvideo",
+        "-pix_fmt", "bgr24", "-s", f"{w}x{h}", "-r", str(fps),
+        "-i", "-",
+        "-an", "-vcodec", "libx264", "-pix_fmt", "yuv420p",
+        out_path,
+    ]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     for frame in frames_bgr:
-        out.write(frame)
-    out.release()
+        proc.stdin.write(np.ascontiguousarray(frame, dtype=np.uint8).tobytes())
+    proc.stdin.close()
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError("ffmpeg failed while writing the LatentSync driving video")
 
 
 def render_video_latentsync(
