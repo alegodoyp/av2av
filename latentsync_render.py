@@ -28,13 +28,36 @@ import imageio_ffmpeg
 from util import save_audio
 
 
+def _fix_blank_frames(frames_bgr, mean_threshold=3.0):
+    """Some source videos have a black/blank frame at the very start (camera
+    warm-up, fade-in) or scattered elsewhere -- confirmed here: samples/video1.mp4
+    itself starts with a solid black frame. This is harmless for our own
+    pipeline (get_crops() already forward/backward-fills missing detections),
+    but LatentSync's own per-frame InsightFace detector has no such tolerance
+    and raises immediately on any frame with no detectable face. Replace any
+    near-black frame with the nearest non-blank frame so every frame handed to
+    LatentSync has a real face, without changing the frame count (which must
+    stay in sync with the driving audio).
+    """
+    means = frames_bgr.reshape(len(frames_bgr), -1).mean(axis=1)
+    blank = means < mean_threshold
+    if not blank.any():
+        return frames_bgr
+
+    good_idx = np.where(~blank)[0]
+    if len(good_idx) == 0:
+        return frames_bgr  # every frame is blank; nothing we can do here
+
+    fixed = frames_bgr.copy()
+    for i in np.where(blank)[0]:
+        nearest = good_idx[np.argmin(np.abs(good_idx - i))]
+        fixed[i] = frames_bgr[nearest]
+    return fixed
+
+
 def _write_silent_video(frames_bgr, out_path, fps=25):
-    # cv2.VideoWriter with the mp4v codec has a known quirk where the first
-    # frame comes out black/corrupted on some encoder backends (encoder
-    # warm-up timing) -- confirmed here: frame 0 of a cv2.VideoWriter-written
-    # clip was solid black while every later frame was fine, which is exactly
-    # why LatentSync's own face detector failed on frame 0. Piping raw frames
-    # into a real ffmpeg process avoids OpenCV's built-in codec entirely.
+    # Piping raw frames into a real ffmpeg process avoids the codec quirks
+    # some cv2.VideoWriter backends have (e.g. mp4v producing garbled frames).
     h, w = frames_bgr.shape[1], frames_bgr.shape[2]
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
     cmd = [
@@ -76,6 +99,7 @@ def render_video_latentsync(
     temp_video_in = os.path.abspath(os.path.join(work_dir, "driving_video.mp4"))
     temp_audio_in = os.path.abspath(os.path.join(work_dir, "driving_audio.wav"))
 
+    full_video = _fix_blank_frames(full_video)
     _write_silent_video(full_video, temp_video_in, fps=fps)
     save_audio(np.asarray(wav, dtype=np.float32), temp_audio_in, sampling_rate=16000)
 
