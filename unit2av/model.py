@@ -253,8 +253,16 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
             if tgt_dur is not None:
                 diff = tgt_dur - dur_out.sum().item()
                 if diff > 0:
-                    dur_out[0, -1] += diff
-                    print(f"DEBUG CodeHiFiGANModel_spk: Padded dur_out[0, -1] with diff={diff}, new sum={dur_out.sum().item()}")
+                    # All the padding lands on a single token, so an
+                    # uncapped diff (e.g. a long source clip paired with a
+                    # much shorter/truncated translation) turns into an
+                    # obviously broken multi-second held note. Cap it at
+                    # ~2s (100 units @ 50Hz); beyond that, let the audio
+                    # just end early rather than drone on unnaturally.
+                    max_pad = 100
+                    applied = min(diff, max_pad)
+                    dur_out[0, -1] += applied
+                    print(f"DEBUG CodeHiFiGANModel_spk: Padded dur_out[0, -1] by {applied} (diff={diff}, capped at {max_pad}), new sum={dur_out.sum().item()}")
             else:
                 print("DEBUG CodeHiFiGANModel_spk: tgt_dur is None... Skipping Padding.")
                     

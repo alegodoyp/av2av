@@ -267,8 +267,11 @@ class AVSpeechToAVSpeechPipeline:
     def process_unit2unit(self, unit):
         task = self.unit2unit_task
         unit = list(map(int, unit.strip().split()))
+        raw_len = len(unit)
+        reduced = process_units(unit, reduce=True)
+        print(f"DEBUG unit2unit input: raw_len={raw_len}, reduced_len={len(reduced)} (encoder sees reduced_len+2)")
         unit = task.source_dictionary.encode_line(
-            " ".join(map(lambda x: str(x), process_units(unit, reduce=True))),
+            " ".join(map(lambda x: str(x), reduced)),
             add_if_not_exist=False,
             append_eos=True,
         ).long()
@@ -281,7 +284,7 @@ class AVSpeechToAVSpeechPipeline:
         sample = {"net_input": {
             "src_tokens": torch.LongTensor(unit).view(1,-1),
         }}
-        
+
         print(f"DEBUG unit2unit: max_token={unit.max().item()}, min_token={unit.min().item()}, vocab_size={len(task.source_dictionary)}")
         if unit.max().item() >= len(task.source_dictionary):
             print(f"WARNING: Token index {unit.max().item()} exceeds vocabulary size {len(task.source_dictionary)}!")
