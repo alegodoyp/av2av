@@ -264,14 +264,45 @@ class AVSpeechToAVSpeechPipeline:
 
         return pred_str
 
+    # Threshold on the *reduced* (post run-length-collapse) source token
+    # count. Confirmed via direct comparison (see conversation): video1's
+    # reduced_len=674 translates cleanly on both the pretrained and
+    # fine-tuned checkpoints; video3's reduced_len=690 degenerates into a
+    # beam-search repetition loop on *both* checkpoints (so it's not a
+    # checkpoint-specific issue). The gap between 674 and 690 is too small to
+    # be a hard length cliff -- it's some property of that content the
+    # decoder can't sustain coherent generation over -- but since we can't
+    # predict which content will trigger it, this keeps a comfortable margin
+    # below the smallest confirmed failure for any input, by translating in
+    # independent chunks instead of trusting one long decode to stay coherent.
+    UNIT2UNIT_CHUNK_SIZE = 500
+
     def process_unit2unit(self, unit):
-        task = self.unit2unit_task
         unit = list(map(int, unit.strip().split()))
         raw_len = len(unit)
         reduced = process_units(unit, reduce=True)
         print(f"DEBUG unit2unit input: raw_len={raw_len}, reduced_len={len(reduced)} (encoder sees reduced_len+2)")
+
+        if len(reduced) <= self.UNIT2UNIT_CHUNK_SIZE:
+            return self._translate_unit_chunk(reduced)
+
+        num_chunks = -(-len(reduced) // self.UNIT2UNIT_CHUNK_SIZE)  # ceil div
+        chunk_size = -(-len(reduced) // num_chunks)  # even split, ceil div
+        chunks = [reduced[i:i + chunk_size] for i in range(0, len(reduced), chunk_size)]
+        print(f"DEBUG unit2unit: reduced_len {len(reduced)} > {self.UNIT2UNIT_CHUNK_SIZE}, "
+              f"splitting into {len(chunks)} chunks of ~{chunk_size} tokens each")
+
+        translated_chunks = []
+        for i, chunk in enumerate(chunks):
+            print(f"DEBUG unit2unit: translating chunk {i + 1}/{len(chunks)} ({len(chunk)} tokens)")
+            translated_chunks.append(self._translate_unit_chunk(chunk))
+
+        return " ".join(translated_chunks)
+
+    def _translate_unit_chunk(self, reduced_units):
+        task = self.unit2unit_task
         unit = task.source_dictionary.encode_line(
-            " ".join(map(lambda x: str(x), reduced)),
+            " ".join(map(str, reduced_units)),
             add_if_not_exist=False,
             append_eos=True,
         ).long()
@@ -301,14 +332,11 @@ class AVSpeechToAVSpeechPipeline:
                 sample,
             )[0][0]
 
-
         pred_str = task.target_dictionary.string(
             pred["tokens"].int().cpu(),
             extra_symbols_to_ignore=get_symbols_to_strip_from_output(self.unit2unit_generator)
         )
-        pred_str = _dedupe_repeated_tail(pred_str)
-
-        return pred_str
+        return _dedupe_repeated_tail(pred_str)
 
     def process_unit2av(self, unit, audio_path, video_path, bbox_path, src_len_tokens=None):
         unit = list(map(int, unit.strip().split()))
