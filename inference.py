@@ -17,7 +17,7 @@ from av2unit.inference import load_model as load_av2unit_model
 from unit2unit.inference import load_model as load_unit2unit_model
 from unit2av.inference import load_model as load_unit2av_model, load_speaker_encoder_model
 
-from util import process_units, extract_audio_from_video, save_video
+from util import process_units, extract_audio_from_video, save_video, get_audio_duration
 from face_restore import load_face_restorer
 from wav2lip_render import load_wav2lip_model, render_video as render_wav2lip_video
 from latentsync_render import render_video_latentsync
@@ -327,7 +327,23 @@ def main(args):
         sys.exit(1)
 
     tgt_unit = pipeline.process_unit2unit(src_unit)
-    tgt_audio, tgt_video, full_video, bbox = pipeline.process_unit2av(tgt_unit, temp_audio_path, args.in_vid_path, bbox_path)
+
+    # tgt_dur (set from src_len_tokens inside process_unit2av) is what makes
+    # the vocoder stretch/pad its output to match the source video's actual
+    # duration -- without it, output length is just whatever the model's own
+    # duration predictor produces for the (often much shorter or longer)
+    # translated sentence, with nothing forcing A/V sync. src_len_tokens is
+    # derived directly from the source audio's wall-clock duration (at
+    # AV-HuBERT's 100Hz token rate, halved to unit2av's 50Hz inside
+    # process_unit2av) rather than from unit counts, to sidestep any
+    # ambiguity in AV-HuBERT's internal rate conventions.
+    src_duration_sec = get_audio_duration(temp_audio_path)
+    src_len_tokens = round(src_duration_sec * 100)
+
+    tgt_audio, tgt_video, full_video, bbox = pipeline.process_unit2av(
+        tgt_unit, temp_audio_path, args.in_vid_path, bbox_path,
+        src_len_tokens=src_len_tokens,
+    )
 
     if args.video_renderer == "latentsync":
         # LatentSync does its own face detection/alignment/diffusion sampling/

@@ -68,6 +68,13 @@ def load_model(model_path, src_lang, tgt_lang, use_cuda=False):
     cfg.generation.max_len_a = 1.2
     cfg.generation.max_len_b = 100
     cfg.generation.beam = 5
+    # Without this, beam search has no mechanism to stop itself from looping:
+    # for longer/harder inputs (e.g. video3, ~27s) the decoder can degenerate
+    # into repeating the same n-gram block over and over, which is exactly
+    # the "recurrently repeating the same sentence" glitch -- confirmed via
+    # spectrogram showing a near-perfectly periodic repeated pattern across
+    # the whole clip. Blocking repeated 3-grams is fairseq's standard fix.
+    cfg.generation.no_repeat_ngram_size = 3
 
     generator = task.build_generator(
         models, cfg.generation
