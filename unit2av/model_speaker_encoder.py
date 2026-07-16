@@ -312,16 +312,13 @@ class SpeakerEncoder(nn.Module):
 
         return embed
 
-    def get_embed(self, wav_path, max_audio_length_s=8.0):
-        # embed_utterance() averages embeddings across the whole input --
-        # for a long source clip with real vocal variety (pacing, intonation,
-        # background conditions), that average dilutes toward a more generic
-        # voice rather than the speaker's distinctive qualities. Restricting
-        # to a short, clean segment gives a more focused, representative
-        # embedding (typical voice-cloning references are a few seconds).
+    def get_embed(self, wav_path):
+        # Tried restricting this to a short (8s) reference window on the
+        # theory that averaging over a long, varied clip dilutes the speaker
+        # identity -- confirmed empirically that it made cloning worse, not
+        # better (this encoder architecture gets more stable/representative
+        # embeddings from averaging over more reference audio, not less).
+        # Reverted to using the full clip.
         wav_preprocessed = self.preprocess_wav(wav_path)
-        max_samples = int(max_audio_length_s * self.cfg.sampling_rate)
-        if len(wav_preprocessed) > max_samples:
-            wav_preprocessed = wav_preprocessed[:max_samples]
         embed = self.embed_utterance(wav_preprocessed)
         return embed

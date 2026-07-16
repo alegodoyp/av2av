@@ -22,6 +22,35 @@ from face_restore import load_face_restorer
 from wav2lip_render import load_wav2lip_model, render_video as render_wav2lip_video
 from latentsync_render import render_video_latentsync
 
+def _debug_check_repeats(label, unit_str, ngram_size=8):
+    # Ground-truth check for repeated content at the token level, since
+    # audio/spectrogram-based inspection turned out to be unreliable (normal
+    # speech's regular syllable-stress cadence can look "periodic" without
+    # any content actually repeating, and phase-cancellation found no exact
+    # repeated audio segment either). This finds any exact repeated n-gram
+    # directly in the unit sequence, with no guessing involved.
+    if not unit_str:
+        print(f"DEBUG repeat-check [{label}]: empty")
+        return
+    tokens = unit_str.strip().split()
+    print(f"DEBUG repeat-check [{label}]: {len(tokens)} tokens")
+
+    positions = {}
+    for i in range(len(tokens) - ngram_size + 1):
+        ngram = tuple(tokens[i:i + ngram_size])
+        positions.setdefault(ngram, []).append(i)
+
+    repeated = {ng: pos for ng, pos in positions.items() if len(pos) > 1}
+    if not repeated:
+        print(f"DEBUG repeat-check [{label}]: no repeated {ngram_size}-gram found")
+        return
+
+    worst_ngram, worst_positions = max(repeated.items(), key=lambda kv: len(kv[1]))
+    print(
+        f"DEBUG repeat-check [{label}]: FOUND a {ngram_size}-gram repeated "
+        f"{len(worst_positions)}x at token positions {worst_positions}: {' '.join(worst_ngram)}"
+    )
+
 def extract_bbox(video_path, save_path):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Loading FaceAlignment on {device}...")
@@ -327,6 +356,9 @@ def main(args):
         sys.exit(1)
 
     tgt_unit = pipeline.process_unit2unit(src_unit)
+
+    _debug_check_repeats("src_unit", src_unit)
+    _debug_check_repeats("tgt_unit", tgt_unit)
 
     # tgt_dur (set from src_len_tokens inside process_unit2av) is what makes
     # the vocoder stretch/pad its output to match the source video's actual
