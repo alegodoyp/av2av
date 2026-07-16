@@ -51,6 +51,28 @@ def _debug_check_repeats(label, unit_str, ngram_size=8):
         f"{len(worst_positions)}x at token positions {worst_positions}: {' '.join(worst_ngram)}"
     )
 
+def _dedupe_repeated_tail(unit_str, ngram_size=8, min_repeats=3):
+    # Safety net for unit2unit's decoder degenerating into a repetition loop
+    # (confirmed on video3: an 8-gram repeated 15x at ~55-token intervals,
+    # despite cfg.generation.no_repeat_ngram_size=3 being set -- whatever the
+    # exact reason that constraint isn't preventing it, this truncates the
+    # sequence at the first sign of looping rather than depending on
+    # generation-time blocking alone). min_repeats=3 (not 2) so a phrase
+    # that's legitimately repeated once or twice for emphasis isn't cut.
+    tokens = unit_str.strip().split()
+    positions = {}
+    for i in range(len(tokens) - ngram_size + 1):
+        ngram = tuple(tokens[i:i + ngram_size])
+        positions.setdefault(ngram, []).append(i)
+
+    repeated = {ng: pos for ng, pos in positions.items() if len(pos) >= min_repeats}
+    if not repeated:
+        return unit_str
+
+    cutoff = min(pos[1] for pos in repeated.values())
+    print(f"DEBUG dedupe: truncating tgt_unit at token {cutoff}/{len(tokens)} (repetition loop detected)")
+    return " ".join(tokens[:cutoff])
+
 def extract_bbox(video_path, save_path):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Loading FaceAlignment on {device}...")
@@ -281,6 +303,7 @@ class AVSpeechToAVSpeechPipeline:
             pred["tokens"].int().cpu(),
             extra_symbols_to_ignore=get_symbols_to_strip_from_output(self.unit2unit_generator)
         )
+        pred_str = _dedupe_repeated_tail(pred_str)
 
         return pred_str
 
