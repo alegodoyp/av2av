@@ -82,11 +82,13 @@ def render_video_latentsync(
     repo_dir, python_bin,
     unet_config_path="configs/unet/stage2_512.yaml",
     ckpt_path="checkpoints/latentsync_unet.pt",
-    inference_steps=20, guidance_scale=1.5, fps=25,
+    inference_steps=20, guidance_scale=1.5, fps=25, sampling_rate=16000,
 ):
     """Runs LatentSync end-to-end and writes the result to out_vid_path.
 
-    wav: synthesized audio (from unit2av's CodeHiFiGANModel_spk), 16kHz.
+    wav: synthesized audio (from unit2av's CodeHiFiGANModel_spk, optionally
+        already passed through audio_restore's VoiceFixer pass -- in which
+        case sampling_rate will be 44100, not the vocoder's native 16000).
     full_video: duration-matched background frames (BGR uint8), same as
         what unit2av/wav2lip_render use -- LatentSync does its own face
         detection on these directly, no pre-cropping needed.
@@ -101,7 +103,7 @@ def render_video_latentsync(
 
     full_video = _fix_blank_frames(full_video)
     _write_silent_video(full_video, temp_video_in, fps=fps)
-    save_audio(np.asarray(wav, dtype=np.float32), temp_audio_in, sampling_rate=16000)
+    save_audio(np.asarray(wav, dtype=np.float32), temp_audio_in, sampling_rate=sampling_rate)
 
     cmd = [
         python_bin, "-m", "scripts.inference",

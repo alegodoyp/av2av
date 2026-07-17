@@ -17,8 +17,9 @@ from av2unit.inference import load_model as load_av2unit_model
 from unit2unit.inference import load_model as load_unit2unit_model
 from unit2av.inference import load_model as load_unit2av_model, load_speaker_encoder_model
 
-from util import process_units, extract_audio_from_video, save_video, get_audio_duration
+from util import process_units, extract_audio_from_video, save_video, get_audio_duration, save_audio, load_audio
 from face_restore import load_face_restorer
+from audio_restore import load_voice_restorer, restore_audio_file
 from wav2lip_render import load_wav2lip_model, render_video as render_wav2lip_video
 from latentsync_render import render_video_latentsync
 
@@ -389,6 +390,7 @@ def main(args):
     wav2lip_model = None
     if args.video_renderer == "wav2lip":
         wav2lip_model = load_wav2lip_model(args.wav2lip_checkpoint, use_cuda=use_cuda)
+    voice_restorer = None if args.no_audio_restore else load_voice_restorer(use_cuda=use_cuda)
 
     pipeline = AVSpeechToAVSpeechPipeline(
         av2unit_model, av2unit_task,
@@ -430,6 +432,22 @@ def main(args):
         tgt_unit, temp_audio_path, args.in_vid_path, bbox_path,
         src_len_tokens=src_len_tokens,
     )
+    tgt_sr = 16000  # unit2av's CodeHiFiGANModel_spk native rate (config.json)
+
+    if voice_restorer is not None:
+        # unit2av's vocoder is architecturally capped at 16kHz/8kHz-fmax (see
+        # unit2av/config.json) -- it was never trained to produce anything
+        # above 8kHz, which is what reads as "muffled", plus whatever GAN
+        # artifacts a zero-shot speaker-conditioned vocoder introduces
+        # ("noisy"). VoiceFixer restores this to full-bandwidth 44.1kHz.
+        presynth_path = os.path.splitext(args.out_vid_path)[0] + ".presynth.wav"
+        restored_path = os.path.splitext(args.out_vid_path)[0] + ".restored.wav"
+        save_audio(tgt_audio, presynth_path, sampling_rate=tgt_sr)
+        result_path = restore_audio_file(voice_restorer, presynth_path, restored_path, use_cuda=use_cuda)
+        if result_path == restored_path:
+            tgt_audio, tgt_sr = load_audio(restored_path)
+            os.remove(restored_path)
+        os.remove(presynth_path)
 
     if args.video_renderer == "latentsync":
         # LatentSync does its own face detection/alignment/diffusion sampling/
@@ -442,6 +460,7 @@ def main(args):
             python_bin=args.latentsync_python,
             unet_config_path=args.latentsync_config,
             ckpt_path=args.latentsync_ckpt,
+            sampling_rate=tgt_sr,
         )
     else:
         if wav2lip_model is not None:
@@ -451,10 +470,11 @@ def main(args):
             # Wav2Lip's own crop conventions, so we must paste back with
             # those same boxes (returned here), not the original ones.
             tgt_video, bbox = render_wav2lip_video(
-                wav2lip_model, tgt_audio, full_video, bbox, fps=25, use_cuda=use_cuda
+                wav2lip_model, tgt_audio, full_video, bbox, fps=25, use_cuda=use_cuda,
+                sampling_rate=tgt_sr,
             )
 
-        save_video(tgt_audio, tgt_video, full_video, bbox, args.out_vid_path, restorer=face_restorer)
+        save_video(tgt_audio, tgt_video, full_video, bbox, args.out_vid_path, restorer=face_restorer, sampling_rate=tgt_sr)
 
     os.remove(temp_audio_path)
 
@@ -493,6 +513,12 @@ def cli_main():
     parser.add_argument(
         "--no-face-restore", action="store_true",
         help="Disable GFPGAN face restoration post-process (enabled by default)"
+    )
+    parser.add_argument(
+        "--no-audio-restore", action="store_true",
+        help="Disable VoiceFixer audio restoration post-process (enabled by default). "
+             "unit2av's vocoder is capped at 16kHz/8kHz-fmax; this restores full-bandwidth "
+             "44.1kHz audio and reduces vocoder noise artifacts."
     )
     parser.add_argument(
         "--video-renderer", type=str, default="unit2av",

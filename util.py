@@ -41,6 +41,10 @@ def get_audio_duration(audio_path):
     info = sf.info(audio_path)
     return info.frames / info.samplerate
 
+def load_audio(audio_path):
+    audio, sr = sf.read(audio_path, dtype="float32")
+    return audio, sr
+
 def extract_audio_from_video(video_path, save_audio_path, sampling_rate=16000):
     os.makedirs(os.path.dirname(save_audio_path), exist_ok=True)
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()

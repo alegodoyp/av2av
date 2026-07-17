@@ -20,6 +20,7 @@ import cv2
 
 from wav2lip_vendor.wav2lip_model import Wav2Lip
 from wav2lip_vendor import audio as w2l_audio
+from wav2lip_vendor.hparams import hparams as w2l_hparams
 
 MEL_STEP_SIZE = 16
 IMG_SIZE = 96
@@ -99,12 +100,19 @@ def _mel_chunks_for_frames(wav, num_frames, fps):
     return chunks
 
 
-def render_video(model, wav, frames, crops, fps=25, use_cuda=True, batch_size=32):
+def render_video(model, wav, frames, crops, fps=25, use_cuda=True, batch_size=32, sampling_rate=16000):
     """Generates one 96x96 face patch per frame, Wav2Lip-style.
 
     frames: full background frames (BGR uint8), same convention as
         unit2av's `full_video`.
     crops: per-frame (x1, y1, x2, y2) face boxes.
+    wav/sampling_rate: driving audio (from unit2av, optionally already
+        restored by audio_restore's VoiceFixer pass, in which case
+        sampling_rate is 44100, not the vocoder's native 16000). Wav2Lip's
+        own mel-spectrogram math (wav2lip_vendor/hparams.py) is hardcoded for
+        16kHz, so anything else is resampled down before mel extraction --
+        this only affects the lip-sync timing features, not final audio
+        quality (the caller keeps using the original wav for the soundtrack).
 
     Returns (gen_vid, used_crops): gen_vid is an (N, 96, 96, 3) uint8 array,
     a drop-in replacement for unit2av.model.UnitAVRenderer.forward()'s
@@ -114,7 +122,11 @@ def render_video(model, wav, frames, crops, fps=25, use_cuda=True, batch_size=32
     match the region it gets resized into.
     """
     device = "cuda" if use_cuda else "cpu"
-    mel_chunks = _mel_chunks_for_frames(np.asarray(wav, dtype=np.float32), len(frames), fps)
+    wav = np.asarray(wav, dtype=np.float32)
+    if sampling_rate != w2l_hparams.sample_rate:
+        import librosa
+        wav = librosa.resample(wav, orig_sr=sampling_rate, target_sr=w2l_hparams.sample_rate)
+    mel_chunks = _mel_chunks_for_frames(wav, len(frames), fps)
 
     n = min(len(frames), len(crops), len(mel_chunks))
     frames, mel_chunks = frames[:n], mel_chunks[:n]
