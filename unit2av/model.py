@@ -253,16 +253,22 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
             if tgt_dur is not None:
                 diff = tgt_dur - dur_out.sum().item()
                 if diff > 0:
-                    # All the padding lands on a single token, so an
-                    # uncapped diff (e.g. a long source clip paired with a
-                    # much shorter/truncated translation) turns into an
-                    # obviously broken multi-second held note. Cap it at
-                    # ~2s (100 units @ 50Hz); beyond that, let the audio
-                    # just end early rather than drone on unnaturally.
-                    max_pad = 100
-                    applied = min(diff, max_pad)
-                    dur_out[0, -1] += applied
-                    print(f"DEBUG CodeHiFiGANModel_spk: Padded dur_out[0, -1] by {applied} (diff={diff}, capped at {max_pad}), new sum={dur_out.sum().item()}")
+                    # Rather than cramming the whole deficit onto one held
+                    # note (an uncapped diff turns into an obviously broken
+                    # multi-second drone) or capping it (which just
+                    # truncates the *entire* output -- video included, since
+                    # frame count derives from this same duration -- to a
+                    # shorter runtime than the source; confirmed on video3,
+                    # a ~26.5s clip came out at 13.9s), scale every token's
+                    # predicted duration up proportionally. The whole
+                    # utterance speaks slower to fill the gap, matching a
+                    # slowly-paced source speaker, instead of distorting or
+                    # cutting off the end.
+                    scale = tgt_dur / dur_out.sum().item()
+                    dur_out = torch.clamp(torch.round(dur_out.float() * scale).long(), min=1)
+                    residual = tgt_dur - dur_out.sum().item()
+                    dur_out[0, -1] += residual
+                    print(f"DEBUG CodeHiFiGANModel_spk: Scaled dur_out by {scale:.3f}x to fill tgt_dur, new sum={dur_out.sum().item()}")
             else:
                 print("DEBUG CodeHiFiGANModel_spk: tgt_dur is None... Skipping Padding.")
                     
