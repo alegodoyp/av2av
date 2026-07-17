@@ -17,7 +17,7 @@ from av2unit.inference import load_model as load_av2unit_model
 from unit2unit.inference import load_model as load_unit2unit_model
 from unit2av.inference import load_model as load_unit2av_model, load_speaker_encoder_model
 
-from util import process_units, extract_audio_from_video, save_video, get_audio_duration, save_audio, load_audio
+from util import extract_audio_from_video, save_video, get_audio_duration, save_audio, load_audio
 from face_restore import load_face_restorer
 from audio_restore import load_voice_restorer, restore_audio_file
 from wav2lip_render import load_wav2lip_model, render_video as render_wav2lip_video
@@ -73,6 +73,47 @@ def _dedupe_repeated_tail(unit_str, ngram_size=8, min_repeats=3):
     cutoff = min(pos[1] for pos in repeated.values())
     print(f"DEBUG dedupe: truncating tgt_unit at token {cutoff}/{len(tokens)} (repetition loop detected)")
     return " ".join(tokens[:cutoff])
+
+def _reduce_with_run_lengths(units):
+    # Like util.process_units(reduce=True), but also returns how many raw
+    # tokens each reduced token collapsed from. A run length well above 1
+    # means the source held the same unit for a while -- a sustained
+    # sound/breath -- which is a reasonable proxy for a natural pause between
+    # phrases, used below to pick better chunk-split points than an arbitrary
+    # fixed position.
+    reduced, run_lengths = [], []
+    for u in units:
+        if reduced and reduced[-1] == u:
+            run_lengths[-1] += 1
+        else:
+            reduced.append(u)
+            run_lengths.append(1)
+    return reduced, run_lengths
+
+def _find_pause_split_points(run_lengths, num_chunks, search_frac=0.2):
+    # Chooses num_chunks-1 split positions near evenly-spaced targets, each
+    # snapped to the most pause-like (highest run-length) position within a
+    # local window, instead of cutting at the exact fixed target -- avoids
+    # splitting mid-sentence, which starves the second chunk of context and
+    # was confirmed (see conversation) to make translations incoherent past
+    # the split, even though it fixed the earlier repetition-loop bug.
+    total_len = len(run_lengths)
+    ideal_size = total_len / num_chunks
+    window = max(1, int(ideal_size * search_frac))
+
+    splits = []
+    prev_split = 0
+    for i in range(1, num_chunks):
+        target = int(i * ideal_size)
+        lo = max(prev_split + 1, target - window)
+        hi = min(total_len - 1, target + window)
+        if lo >= hi:
+            split = target
+        else:
+            split = max(range(lo, hi), key=lambda p: run_lengths[p])
+        splits.append(split)
+        prev_split = split
+    return splits
 
 def extract_bbox(video_path, save_path):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -281,17 +322,18 @@ class AVSpeechToAVSpeechPipeline:
     def process_unit2unit(self, unit):
         unit = list(map(int, unit.strip().split()))
         raw_len = len(unit)
-        reduced = process_units(unit, reduce=True)
+        reduced, run_lengths = _reduce_with_run_lengths(unit)
         print(f"DEBUG unit2unit input: raw_len={raw_len}, reduced_len={len(reduced)} (encoder sees reduced_len+2)")
 
         if len(reduced) <= self.UNIT2UNIT_CHUNK_SIZE:
             return self._translate_unit_chunk(reduced)
 
         num_chunks = -(-len(reduced) // self.UNIT2UNIT_CHUNK_SIZE)  # ceil div
-        chunk_size = -(-len(reduced) // num_chunks)  # even split, ceil div
-        chunks = [reduced[i:i + chunk_size] for i in range(0, len(reduced), chunk_size)]
+        split_points = _find_pause_split_points(run_lengths, num_chunks)
+        bounds = [0] + split_points + [len(reduced)]
+        chunks = [reduced[bounds[i]:bounds[i + 1]] for i in range(len(bounds) - 1)]
         print(f"DEBUG unit2unit: reduced_len {len(reduced)} > {self.UNIT2UNIT_CHUNK_SIZE}, "
-              f"splitting into {len(chunks)} chunks of ~{chunk_size} tokens each")
+              f"splitting into {len(chunks)} chunks at pause-aligned points {split_points}")
 
         translated_chunks = []
         for i, chunk in enumerate(chunks):
