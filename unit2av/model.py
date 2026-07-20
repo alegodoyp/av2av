@@ -165,36 +165,26 @@ class UnitAVRenderer(CodeHiFiGANVocoder):
         crops = crops[:min_len]
         
         len_frames = len(frames)
-        reverse_frames = frames.flip(0)
-        repeated_frames = torch.cat((reverse_frames[1:], frames[1:]))
-        
-        # Calculate exactly how many repetitions are needed
-        if len(frames) < padded_tgt_len:
-            repeats_needed = (padded_tgt_len - len(frames)) // len(repeated_frames) + 1
-            print(f"DEBUG UnitAVRenderer: padded_tgt_len={padded_tgt_len}, len(frames)={len(frames)}, len(repeated_frames)={len(repeated_frames)}, repeats_needed={repeats_needed}")
-            # Protect against catastrophic explosion
-            if repeats_needed > 1000:
-                print(f"ERROR: repeats_needed={repeats_needed} is insanely large! Clamping to 50.")
-                repeats_needed = 50
-                
-            frames = torch.cat([frames] + [repeated_frames] * repeats_needed)
-            
+
+        if len_frames < padded_tgt_len:
+            # Proportionally stretch (nearest-neighbor frame duplication)
+            # instead of ping-pong looping the whole clip forward-then-
+            # backward: CodeHiFiGANModel_spk.forward() can now scale audio
+            # duration up to match a slowly-paced source speaker, and the
+            # video must stretch by the same proportion to stay in sync --
+            # looping the original clip at its natural pace desyncs from the
+            # now-slower audio (confirmed: lip-sync broke down partway
+            # through, exactly where the looped video diverges from the
+            # stretched audio). Mapping each output frame position back to a
+            # proportional source index preserves relative timing instead.
+            print(f"DEBUG UnitAVRenderer: padded_tgt_len={padded_tgt_len}, len_frames={len_frames}, "
+                  f"stretching via nearest-neighbor frame duplication to stay in sync with the audio")
+            src_idx = (torch.arange(padded_tgt_len) * len_frames // padded_tgt_len).clamp(max=len_frames - 1)
+            frames = frames[src_idx]
+            crops = crops[src_idx.numpy()]
+
         frames = frames[:padded_tgt_len]
         frames = frames.flip(-1)
-        
-        # crops = self.get_crops(bbox_path) # Moved up
-        # assert len(crops) == len_frames   # Handled by truncation
-        reverse_crops = crops[::-1]
-        repeated_crops = np.concatenate([reverse_crops[1:], crops[1:]])
-        
-        if len(crops) < padded_tgt_len:
-            repeats_needed = (padded_tgt_len - len(crops)) // len(repeated_crops) + 1
-            print(f"DEBUG UnitAVRenderer crops: padded_tgt_len={padded_tgt_len}, len(crops)={len(crops)}, repeats_needed={repeats_needed}")
-            if repeats_needed > 1000:
-                repeats_needed = 50
-                
-            crops = np.concatenate([crops] + [repeated_crops] * repeats_needed)
-            
         crops = crops[:padded_tgt_len]
 
         frames_numpy = np.array(frames)
