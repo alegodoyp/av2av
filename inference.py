@@ -68,11 +68,11 @@ def _dedupe_repeated_tail(unit_str, ngram_size=8, min_repeats=3):
 
     repeated = {ng: pos for ng, pos in positions.items() if len(pos) >= min_repeats}
     if not repeated:
-        return unit_str
+        return unit_str, False
 
     cutoff = min(pos[1] for pos in repeated.values())
     print(f"DEBUG dedupe: truncating tgt_unit at token {cutoff}/{len(tokens)} (repetition loop detected)")
-    return " ".join(tokens[:cutoff])
+    return " ".join(tokens[:cutoff]), True
 
 def _reduce_with_run_lengths(units):
     # Like util.process_units(reduce=True), but also returns how many raw
@@ -318,27 +318,45 @@ class AVSpeechToAVSpeechPipeline:
     # below the smallest confirmed failure for any input, by translating in
     # independent chunks instead of trusting one long decode to stay coherent.
     UNIT2UNIT_CHUNK_SIZE = 500
+    # Even after the initial pause-aligned split, a specific chunk can still
+    # degenerate (confirmed on video3: chunk 2, 385 tokens, truncated from a
+    # natural 329 down to 151 on *both* checkpoints -- this content is
+    # genuinely hard for the model, not a fluke of one checkpoint or one
+    # split point). Rather than accept the lost tail (which took the video's
+    # final sentence with it), a truncated chunk gets re-split and retried.
+    MIN_SUBCHUNK_SIZE = 120
+    MAX_SPLIT_DEPTH = 3
 
     def process_unit2unit(self, unit):
         unit = list(map(int, unit.strip().split()))
         raw_len = len(unit)
         reduced, run_lengths = _reduce_with_run_lengths(unit)
         print(f"DEBUG unit2unit input: raw_len={raw_len}, reduced_len={len(reduced)} (encoder sees reduced_len+2)")
+        return self._translate_reduced(reduced, run_lengths)
 
+    def _translate_reduced(self, reduced, run_lengths, depth=0):
         if len(reduced) <= self.UNIT2UNIT_CHUNK_SIZE:
-            return self._translate_unit_chunk(reduced)
+            translated, was_truncated = self._translate_unit_chunk(reduced)
+            if not was_truncated or len(reduced) <= self.MIN_SUBCHUNK_SIZE or depth >= self.MAX_SPLIT_DEPTH:
+                return translated
+            print(f"DEBUG unit2unit: chunk truncated at depth {depth} ({len(reduced)} tokens) -- "
+                  f"retrying as smaller sub-chunks")
+            num_chunks = 2
+        else:
+            num_chunks = -(-len(reduced) // self.UNIT2UNIT_CHUNK_SIZE)  # ceil div
 
-        num_chunks = -(-len(reduced) // self.UNIT2UNIT_CHUNK_SIZE)  # ceil div
         split_points = _find_pause_split_points(run_lengths, num_chunks)
         bounds = [0] + split_points + [len(reduced)]
-        chunks = [reduced[bounds[i]:bounds[i + 1]] for i in range(len(bounds) - 1)]
-        print(f"DEBUG unit2unit: reduced_len {len(reduced)} > {self.UNIT2UNIT_CHUNK_SIZE}, "
-              f"splitting into {len(chunks)} chunks at pause-aligned points {split_points}")
+        print(f"DEBUG unit2unit: depth={depth}, splitting {len(reduced)} tokens into {num_chunks} "
+              f"chunk(s) at pause-aligned points {split_points}")
 
         translated_chunks = []
-        for i, chunk in enumerate(chunks):
-            print(f"DEBUG unit2unit: translating chunk {i + 1}/{len(chunks)} ({len(chunk)} tokens)")
-            translated_chunks.append(self._translate_unit_chunk(chunk))
+        for i in range(len(bounds) - 1):
+            lo, hi = bounds[i], bounds[i + 1]
+            print(f"DEBUG unit2unit: translating chunk {i + 1}/{num_chunks} ({hi - lo} tokens) at depth {depth}")
+            translated_chunks.append(
+                self._translate_reduced(reduced[lo:hi], run_lengths[lo:hi], depth + 1)
+            )
 
         return " ".join(translated_chunks)
 
