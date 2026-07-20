@@ -28,28 +28,39 @@ import imageio_ffmpeg
 from util import save_audio
 
 
-def _fix_blank_frames(frames_bgr, mean_threshold=3.0):
+def _fix_blank_frames(frames_bgr, mean_threshold=3.0, std_threshold=3.0):
     """Some source videos have a black/blank frame at the very start (camera
     warm-up, fade-in) or scattered elsewhere -- confirmed here: samples/video1.mp4
     itself starts with a solid black frame. This is harmless for our own
     pipeline (get_crops() already forward/backward-fills missing detections),
     but LatentSync's own per-frame InsightFace detector has no such tolerance
-    and raises immediately on any frame with no detectable face. Replace any
-    near-black frame with the nearest non-blank frame so every frame handed to
-    LatentSync has a real face, without changing the frame count (which must
-    stay in sync with the driving audio).
+    and raises immediately on any frame with no detectable face.
+
+    Also flags near-uniform/flat frames (very low pixel variance), not just
+    dark ones -- confirmed on video2: with duration stretching now able to
+    pad a clip out well beyond its natural length, LatentSync's detector
+    failed on a frame near the *original* clip's natural ending (proportional
+    position is preserved by the nearest-neighbor stretch in
+    unit2av/model.py), a common place for camera artifacts like fade-out or
+    motion blur that aren't dark enough to trip a brightness-only check.
+
+    Replaces any such frame with the nearest good frame so every frame handed
+    to LatentSync has a real, detectable face, without changing the frame
+    count (which must stay in sync with the driving audio).
     """
-    means = frames_bgr.reshape(len(frames_bgr), -1).mean(axis=1)
-    blank = means < mean_threshold
-    if not blank.any():
+    flat = frames_bgr.reshape(len(frames_bgr), -1)
+    means = flat.mean(axis=1)
+    stds = flat.std(axis=1)
+    degenerate = (means < mean_threshold) | (stds < std_threshold)
+    if not degenerate.any():
         return frames_bgr
 
-    good_idx = np.where(~blank)[0]
+    good_idx = np.where(~degenerate)[0]
     if len(good_idx) == 0:
-        return frames_bgr  # every frame is blank; nothing we can do here
+        return frames_bgr  # every frame is degenerate; nothing we can do here
 
     fixed = frames_bgr.copy()
-    for i in np.where(blank)[0]:
+    for i in np.where(degenerate)[0]:
         nearest = good_idx[np.argmin(np.abs(good_idx - i))]
         fixed[i] = frames_bgr[nearest]
     return fixed
