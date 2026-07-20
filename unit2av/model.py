@@ -257,7 +257,15 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
                     scale = tgt_dur / dur_out.sum().item()
                     dur_out = torch.clamp(torch.round(dur_out.float() * scale).long(), min=1)
                     residual = tgt_dur - dur_out.sum().item()
-                    dur_out[0, -1] += residual
+                    # Rounding each element independently means the scaled
+                    # sum can land slightly above tgt_dur (negative
+                    # residual). Dumping that onto the last token unclamped
+                    # can drive it negative if its scaled duration is small
+                    # relative to the rounding error -- confirmed crash:
+                    # "repeats can not be negative" in repeat_interleave
+                    # below. Re-clamping trades an exact-duration match for
+                    # never producing an invalid repeat count.
+                    dur_out[0, -1] = torch.clamp(dur_out[0, -1] + residual, min=1)
                     print(f"DEBUG CodeHiFiGANModel_spk: Scaled dur_out by {scale:.3f}x to fill tgt_dur, new sum={dur_out.sum().item()}")
             else:
                 print("DEBUG CodeHiFiGANModel_spk: tgt_dur is None... Skipping Padding.")
