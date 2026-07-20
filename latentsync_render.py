@@ -19,6 +19,7 @@ callers should treat its output as the final out_vid_path and skip
 util.save_video() (and GFPGAN restoration) entirely for this renderer.
 """
 import os
+import pickle
 import shutil
 import subprocess
 
@@ -66,6 +67,50 @@ def _fix_blank_frames(frames_bgr, mean_threshold=3.0, std_threshold=3.0):
     return fixed
 
 
+def _load_original_face_detected(bbox_path):
+    # extract_bbox() in inference.py already ran face_alignment on the
+    # original video and recorded None for any undetected frame, before
+    # unit2av.model.get_crops() forward/backward-fills those gaps for its
+    # own use. That's real ground truth, unlike guessing from pixel
+    # statistics -- confirmed necessary on video2: a frame near the clip's
+    # natural ending consistently failed LatentSync's own face detector
+    # despite normal brightness/variance (mean_threshold/std_threshold in
+    # _fix_blank_frames couldn't catch it because nothing about its pixel
+    # statistics was actually unusual).
+    with open(bbox_path, "rb") as f:
+        raw_bboxes = pickle.load(f)
+    return np.array([b is not None for b in raw_bboxes])
+
+
+def _map_face_detected_to_stretched(has_face, stretched_len):
+    # full_video may have been stretched (nearest-neighbor duplication, see
+    # unit2av/model.py) or simply truncated relative to the original video
+    # has_face was computed against -- mirror whichever happened so each
+    # stretched-sequence position maps back to the correct original frame's
+    # detection status.
+    orig_len = len(has_face)
+    if orig_len >= stretched_len:
+        return has_face[:stretched_len]
+    src_idx = np.clip(np.arange(stretched_len) * orig_len // stretched_len, 0, orig_len - 1)
+    return has_face[src_idx]
+
+
+def _fix_undetected_frames(frames_bgr, has_face_mapped):
+    bad = ~has_face_mapped
+    if not bad.any():
+        return frames_bgr
+
+    good_idx = np.where(~bad)[0]
+    if len(good_idx) == 0:
+        return frames_bgr  # no frame in the whole clip had a detected face
+
+    fixed = frames_bgr.copy()
+    for i in np.where(bad)[0]:
+        nearest = good_idx[np.argmin(np.abs(good_idx - i))]
+        fixed[i] = frames_bgr[nearest]
+    return fixed
+
+
 def _write_silent_video(frames_bgr, out_path, fps=25):
     # Piping raw frames into a real ffmpeg process avoids the codec quirks
     # some cv2.VideoWriter backends have (e.g. mp4v producing garbled frames).
@@ -91,6 +136,7 @@ def _write_silent_video(frames_bgr, out_path, fps=25):
 def render_video_latentsync(
     wav, full_video, out_vid_path,
     repo_dir, python_bin,
+    bbox_path=None,
     unet_config_path="configs/unet/stage2_512.yaml",
     ckpt_path="checkpoints/latentsync_unet.pt",
     inference_steps=20, guidance_scale=1.5, fps=25, sampling_rate=16000,
@@ -103,6 +149,10 @@ def render_video_latentsync(
     full_video: duration-matched background frames (BGR uint8), same as
         what unit2av/wav2lip_render use -- LatentSync does its own face
         detection on these directly, no pre-cropping needed.
+    bbox_path: the same pickle inference.py's extract_bbox() wrote for the
+        original video -- lets us fix frames with no real detected face
+        using ground truth instead of guessing from pixel statistics. If
+        omitted, only the (weaker) pixel-statistics check runs.
     repo_dir: path to a local clone of bytedance/LatentSync.
     python_bin: path to that repo's own conda env's python executable.
     """
@@ -112,6 +162,10 @@ def render_video_latentsync(
     temp_video_in = os.path.abspath(os.path.join(work_dir, "driving_video.mp4"))
     temp_audio_in = os.path.abspath(os.path.join(work_dir, "driving_audio.wav"))
 
+    if bbox_path is not None and os.path.exists(bbox_path):
+        has_face = _load_original_face_detected(bbox_path)
+        has_face_mapped = _map_face_detected_to_stretched(has_face, len(full_video))
+        full_video = _fix_undetected_frames(full_video, has_face_mapped)
     full_video = _fix_blank_frames(full_video)
     _write_silent_video(full_video, temp_video_in, fps=fps)
     save_audio(np.asarray(wav, dtype=np.float32), temp_audio_in, sampling_rate=sampling_rate)

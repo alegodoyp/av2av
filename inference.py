@@ -518,6 +518,7 @@ def main(args):
             tgt_audio, full_video, args.out_vid_path,
             repo_dir=args.latentsync_repo,
             python_bin=args.latentsync_python,
+            bbox_path=bbox_path,
             unet_config_path=args.latentsync_config,
             ckpt_path=args.latentsync_ckpt,
             sampling_rate=tgt_sr,
