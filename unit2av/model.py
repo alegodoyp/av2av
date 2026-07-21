@@ -240,6 +240,25 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
             )
             
             print(f"DEBUG CodeHiFiGANModel_spk: Initial dur_out sum={dur_out.sum().item()}, tgt_dur={tgt_dur}")
+
+            # The dur_predictor's own unscaled output reads as rushed
+            # regardless of how the *source* speaker paced their delivery --
+            # confirmed on video1: natural dur_out sum=471 (50Hz frames,
+            # 9.4s) for a 27s source that isn't a fast/continuous talker
+            # (VAD pause_ratio=0.219, unremarkable). This is a property of
+            # this dur_predictor's natural output being too compact, not
+            # something to gate on source pace -- apply a small, always-on
+            # floor stretch to every code's duration regardless of tgt_dur,
+            # so ordinary speech (and the natural pauses within it) always
+            # gets at least this much breathing room. Separate from, and on
+            # top of, the source-pace-gated trailing silence added in
+            # inference.py to close the remaining gap toward a slow/pausy
+            # source's full duration.
+            BASE_SPEECH_SCALE = 1.3
+            dur_out = torch.clamp(torch.round(dur_out.float() * BASE_SPEECH_SCALE).long(), min=1)
+            print(f"DEBUG CodeHiFiGANModel_spk: applied baseline {BASE_SPEECH_SCALE}x speech-rate "
+                  f"floor, new dur_out sum={dur_out.sum().item()}")
+
             if tgt_dur is not None:
                 diff = tgt_dur - dur_out.sum().item()
                 if diff > 0:
