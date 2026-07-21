@@ -254,18 +254,41 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
                     # utterance speaks slower to fill the gap, matching a
                     # slowly-paced source speaker, instead of distorting or
                     # cutting off the end.
-                    scale = tgt_dur / dur_out.sum().item()
+                    #
+                    # Confirmed on video3: a ~2.2-2.25x stretch read as
+                    # natural ("slow paced and nice" -- that speaker
+                    # actually does talk slowly). But video1/video2 needed
+                    # larger stretches to hit their tgt_dur and came out
+                    # "too slow" -- unnaturally drawn-out. Capping the scale
+                    # trades an exact duration match for staying inside a
+                    # range that's been confirmed to sound acceptable.
+                    MAX_DUR_SCALE = 2.3
+                    uncapped_scale = tgt_dur / dur_out.sum().item()
+                    scale = min(uncapped_scale, MAX_DUR_SCALE)
                     dur_out = torch.clamp(torch.round(dur_out.float() * scale).long(), min=1)
-                    residual = tgt_dur - dur_out.sum().item()
-                    # Rounding each element independently means the scaled
-                    # sum can land slightly above tgt_dur (negative
-                    # residual). Dumping that onto the last token unclamped
-                    # can drive it negative if its scaled duration is small
-                    # relative to the rounding error -- confirmed crash:
-                    # "repeats can not be negative" in repeat_interleave
-                    # below. Re-clamping trades an exact-duration match for
-                    # never producing an invalid repeat count.
-                    dur_out[0, -1] = torch.clamp(dur_out[0, -1] + residual, min=1)
+
+                    if uncapped_scale <= MAX_DUR_SCALE:
+                        # Only correct for per-element rounding error (a few
+                        # units at most) when we're actually trying to land
+                        # exactly on tgt_dur. If the scale was capped, the
+                        # "residual" is the whole remaining gap -- dumping
+                        # that onto the last token would reintroduce the
+                        # multi-second-drone artifact this was meant to
+                        # avoid, so we deliberately leave it short instead.
+                        residual = tgt_dur - dur_out.sum().item()
+                        # Re-clamped rather than added unconditionally:
+                        # rounding can make the scaled sum land slightly
+                        # above tgt_dur (negative residual), and applying
+                        # that unclamped can drive the last token negative
+                        # if its scaled duration is small relative to the
+                        # rounding error -- confirmed crash: "repeats can
+                        # not be negative" in repeat_interleave below.
+                        dur_out[0, -1] = torch.clamp(dur_out[0, -1] + residual, min=1)
+                    else:
+                        print(f"DEBUG CodeHiFiGANModel_spk: scale capped at {MAX_DUR_SCALE}x "
+                              f"(uncapped would be {uncapped_scale:.3f}x) -- output will end up "
+                              f"shorter than tgt_dur rather than slur further")
+
                     print(f"DEBUG CodeHiFiGANModel_spk: Scaled dur_out by {scale:.3f}x to fill tgt_dur, new sum={dur_out.sum().item()}")
             else:
                 print("DEBUG CodeHiFiGANModel_spk: tgt_dur is None... Skipping Padding.")
