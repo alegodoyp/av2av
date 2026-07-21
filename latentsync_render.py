@@ -29,6 +29,66 @@ import imageio_ffmpeg
 from util import save_audio
 
 
+def _patch_image_processor_for_missing_faces(repo_dir):
+    # LatentSync's own image_processor.py raises immediately if its internal
+    # InsightFace detector finds no face in a frame, with no fallback. Our
+    # own face_alignment-based ground truth (_fix_undetected_frames below)
+    # doesn't reliably predict this -- confirmed on video2: the two
+    # detectors disagree on a specific frame (ours succeeds, theirs
+    # doesn't), so no amount of guessing from our detector's output can
+    # prevent a failure in a *different* detector. Patches their
+    # affine_transform to reuse the last successfully-detected frame's
+    # alignment instead of raising. Idempotent -- checks a marker before
+    # editing, and warns (doesn't silently no-op) if the expected code
+    # isn't found, e.g. after an upstream LatentSync update.
+    path = os.path.join(repo_dir, "latentsync", "utils", "image_processor.py")
+    if not os.path.exists(path):
+        print(f"Warning: {path} not found; skipping the missing-face fallback patch.")
+        return
+
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    if "_last_good_affine_result" in content:
+        return  # already patched
+
+    old_raise = (
+        '        bbox, landmark_2d_106 = self.face_detector(image)\n'
+        '        if bbox is None:\n'
+        '            raise RuntimeError("Face not detected")'
+    )
+    new_raise = (
+        '        bbox, landmark_2d_106 = self.face_detector(image)\n'
+        '        if bbox is None:\n'
+        '            if getattr(self, "_last_good_affine_result", None) is not None:\n'
+        '                return self._last_good_affine_result\n'
+        '            raise RuntimeError("Face not detected")'
+    )
+    old_return = (
+        '        face = rearrange(torch.from_numpy(face), "h w c -> c h w")\n'
+        '        return face, box, affine_matrix'
+    )
+    new_return = (
+        '        face = rearrange(torch.from_numpy(face), "h w c -> c h w")\n'
+        '        self._last_good_affine_result = (face, box, affine_matrix)\n'
+        '        return self._last_good_affine_result'
+    )
+
+    if old_raise not in content or old_return not in content:
+        print(
+            "Warning: could not apply the missing-face fallback patch to LatentSync's "
+            "image_processor.py (expected code not found -- it may have changed upstream). "
+            "Continuing unpatched; a 'Face not detected' crash is possible."
+        )
+        return
+
+    content = content.replace(old_raise, new_raise).replace(old_return, new_return)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    print(f"Patched {path}: reuse last successful face alignment instead of raising "
+          f"when a frame's face isn't detected")
+
+
 def _fix_blank_frames(frames_bgr, mean_threshold=3.0, std_threshold=3.0):
     """Some source videos have a black/blank frame at the very start (camera
     warm-up, fade-in) or scattered elsewhere -- confirmed here: samples/video1.mp4
@@ -156,6 +216,8 @@ def render_video_latentsync(
     repo_dir: path to a local clone of bytedance/LatentSync.
     python_bin: path to that repo's own conda env's python executable.
     """
+    _patch_image_processor_for_missing_faces(repo_dir)
+
     out_vid_path = os.path.abspath(out_vid_path)
     work_dir = os.path.join(os.path.dirname(out_vid_path), "_latentsync_tmp")
     os.makedirs(work_dir, exist_ok=True)
