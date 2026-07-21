@@ -243,64 +243,51 @@ class CodeHiFiGANModel_spk(CodeHiFiGANModel):
             if tgt_dur is not None:
                 diff = tgt_dur - dur_out.sum().item()
                 if diff > 0:
-                    # Previously this scaled every code's predicted duration
-                    # up by the same proportional factor (capped at 2.3x) to
-                    # fill the gap. Confirmed on video1/video2: even within
-                    # that cap, stretching every code equally reads as
-                    # unnaturally slow-motion speech, because ordinary
-                    # phonemes get stretched just as much as actual pauses --
-                    # a human filling extra time pauses longer between
-                    # phrases, they don't talk slower throughout. The
-                    # duration predictor already assigns noticeably longer
-                    # natural durations to pause/breath codes than to
-                    # ordinary phoneme codes, so instead of touching every
-                    # code, extend only the codes that are already
-                    # pause-like (well above this sequence's own mean
-                    # duration), proportional to how long they already are.
-                    # Ordinary speech keeps its untouched, natural pace.
-                    dur_float = dur_out.float()
-                    mean_dur = dur_float.mean()
-                    pause_mask = dur_float > mean_dur * 1.3
-                    if not pause_mask.any():
-                        # Nothing stands out as pause-like (e.g. a very
-                        # short utterance) -- fall back to the single
-                        # longest-held code, still more likely to be a
-                        # natural pause than an arbitrary phoneme.
-                        pause_mask = dur_float == dur_float.max()
+                    # Tried (and reverted): extending only codes with
+                    # above-average predicted duration, on the theory that
+                    # those are pause/breath codes and stretching them would
+                    # add gaps instead of slowing speech. Confirmed broken by
+                    # the user -- "totally unrecognizable... can't understand
+                    # the words". A code's predicted duration being
+                    # above-average doesn't mean it's silence; ordinary
+                    # vowels/sustained consonants are naturally longer than
+                    # stop consonants too, so the mean*1.3 threshold caught
+                    # plenty of real speech content scattered through the
+                    # utterance and stretched it up to 4x, garbling words
+                    # rather than adding pauses between them. Back to scaling
+                    # every code's duration up by the same proportional
+                    # factor -- this only slows the whole utterance down
+                    # (confirmed acceptable up to ~2.2-2.3x on video3) rather
+                    # than distorting specific words, even though it doesn't
+                    # match how a human actually fills extra time.
+                    MAX_DUR_SCALE = 2.3
+                    uncapped_scale = tgt_dur / dur_out.sum().item()
+                    scale = min(uncapped_scale, MAX_DUR_SCALE)
+                    dur_out = torch.clamp(torch.round(dur_out.float() * scale).long(), min=1)
 
-                    # Still bounded per pause slot -- an unbounded single
-                    # held silence can itself sound like a glitch/dropout,
-                    # not a natural pause. 150 frames @ 50Hz = 3s, well past
-                    # any normal inter-phrase pause but short of "broken".
-                    MAX_PAUSE_FRAMES = 150
-                    headroom = torch.clamp(dur_float * 4, max=MAX_PAUSE_FRAMES) - dur_float
-                    capacity = torch.clamp(headroom, min=0) * pause_mask
-                    total_capacity = capacity.sum().item()
+                    if uncapped_scale <= MAX_DUR_SCALE:
+                        # Only correct for per-element rounding error (a few
+                        # units at most) when we're actually trying to land
+                        # exactly on tgt_dur. If the scale was capped, the
+                        # "residual" is the whole remaining gap -- dumping
+                        # that onto the last token would reintroduce the
+                        # multi-second-drone artifact this was meant to
+                        # avoid, so we deliberately leave it short instead.
+                        residual = tgt_dur - dur_out.sum().item()
+                        # Re-clamped rather than added unconditionally:
+                        # rounding can make the scaled sum land slightly
+                        # above tgt_dur (negative residual), and applying
+                        # that unclamped can drive the last token negative
+                        # if its scaled duration is small relative to the
+                        # rounding error -- confirmed crash: "repeats can
+                        # not be negative" in repeat_interleave below.
+                        dur_out[0, -1] = torch.clamp(dur_out[0, -1] + residual, min=1)
+                    else:
+                        print(f"DEBUG CodeHiFiGANModel_spk: scale capped at {MAX_DUR_SCALE}x "
+                              f"(uncapped would be {uncapped_scale:.3f}x) -- output will end up "
+                              f"shorter than tgt_dur rather than slur further")
 
-                    grant = min(diff, total_capacity) if total_capacity > 0 else 0.0
-                    if grant > 0:
-                        dur_float = dur_float + capacity * (grant / total_capacity)
-                    remaining = diff - grant
-
-                    if remaining > 0:
-                        # Extreme case: even maxing out every existing pause
-                        # wasn't enough to reach tgt_dur. Rather than leave
-                        # the output noticeably short, top up the remainder
-                        # with a small uniform stretch -- bounded much lower
-                        # than the old scheme since pauses already absorbed
-                        # most of the gap.
-                        MAX_DUR_SCALE = 1.3
-                        uncapped_scale = (dur_float.sum().item() + remaining) / dur_float.sum().item()
-                        scale = min(uncapped_scale, MAX_DUR_SCALE)
-                        dur_float = dur_float * scale
-                        print(f"DEBUG CodeHiFiGANModel_spk: pause extension alone fell "
-                              f"{remaining:.0f} frames short of tgt_dur -- topping up with a "
-                              f"{scale:.3f}x uniform stretch")
-
-                    dur_out = torch.clamp(torch.round(dur_float).long(), min=1)
-                    print(f"DEBUG CodeHiFiGANModel_spk: extended {int(pause_mask.sum().item())} "
-                          f"pause-like code(s) by {grant:.0f} frames to fill tgt_dur, "
-                          f"new sum={dur_out.sum().item()} (target {tgt_dur})")
+                    print(f"DEBUG CodeHiFiGANModel_spk: Scaled dur_out by {scale:.3f}x to fill tgt_dur, new sum={dur_out.sum().item()}")
             else:
                 print("DEBUG CodeHiFiGANModel_spk: tgt_dur is None... Skipping Padding.")
                     

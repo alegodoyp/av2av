@@ -2,6 +2,7 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import sys
+import wave
 import argparse
 import numpy as np
 import torch
@@ -9,6 +10,7 @@ import torch.nn.functional as F
 import pickle
 import imageio
 import face_alignment
+import webrtcvad
 
 from fairseq import utils
 from fairseq_cli.generate import get_symbols_to_strip_from_output
@@ -114,6 +116,68 @@ def _find_pause_split_points(run_lengths, num_chunks, search_frac=0.2):
         splits.append(split)
         prev_split = split
     return splits
+
+def _measure_pause_ratio(wav_path, frame_ms=30, aggressiveness=2):
+    # Fraction of the source audio classified as non-speech by webrtcvad --
+    # a continuous/fast talker has few silent frames, a slower speaker with
+    # natural breathing pauses between phrases has many. Used as a proxy for
+    # how much "catch-up" pause time the translation should be allowed to
+    # add, instead of always forcing the translation to fill the source's
+    # exact duration regardless of how it was paced (see _source_pace_factor).
+    # Requires mono 16-bit PCM, which is what extract_audio_from_video writes.
+    vad = webrtcvad.Vad(aggressiveness)
+    with wave.open(wav_path, "rb") as wf:
+        sr = wf.getframerate()
+        assert wf.getnchannels() == 1 and wf.getsampwidth() == 2, \
+            f"webrtcvad needs mono 16-bit PCM, got {wf.getnchannels()}ch/{wf.getsampwidth()*8}bit"
+        pcm = wf.readframes(wf.getnframes())
+
+    frame_bytes = int(sr * frame_ms / 1000) * 2
+    n_frames = len(pcm) // frame_bytes
+    if n_frames == 0:
+        return 0.0
+    silent = sum(
+        1 for i in range(n_frames)
+        if not vad.is_speech(pcm[i * frame_bytes:(i + 1) * frame_bytes], sr)
+    )
+    return silent / n_frames
+
+def _source_pace_factor(pause_ratio, low=0.15, high=0.45):
+    # Maps a source pause ratio to how much of the gap between the source
+    # video's duration and the (naturally-paced) translated audio's duration
+    # we're willing to fill with added pause time: 0 for a continuous/fast
+    # talker (keep the translation at its own natural pace, even if that
+    # ends up shorter than the source clip), 1 for a slow/pausy talker (fill
+    # the whole gap so the translated clip runs the source's full length).
+    # low/high are a first-pass heuristic -- no calibration data yet, so
+    # these may need tuning once tried against real videos.
+    return float(np.clip((pause_ratio - low) / (high - low), 0.0, 1.0))
+
+def _pad_with_silence(wav, video, full_video, bbox, target_duration_sec, sr, fps=25):
+    # Adds genuine trailing silence (and correspondingly frozen final video
+    # frames) instead of stretching phoneme durations to fill extra time --
+    # tried extending code durations to simulate pauses (see unit2av/model.py
+    # history) and it garbled real speech content, because there's no
+    # reliable way to tell a "pause" code from an ordinary long-held phoneme
+    # from duration alone. Appending real silence after generation can't
+    # distort a single word, since it only ever extends the clip past where
+    # the actual (untouched) speech already ended.
+    current_sec = len(wav) / sr
+    gap_sec = target_duration_sec - current_sec
+    if gap_sec <= 0:
+        return wav, video, full_video, bbox
+
+    n_samples = int(round(gap_sec * sr))
+    n_frames = int(round(gap_sec * fps))
+    print(f"DEBUG pace-matching: appending {gap_sec:.2f}s of trailing silence "
+          f"({n_samples} samples / {n_frames} frames) to reach {target_duration_sec:.2f}s")
+
+    wav = np.concatenate([wav, np.zeros(n_samples, dtype=wav.dtype)])
+    if n_frames > 0:
+        video = np.concatenate([video, np.repeat(video[-1:], n_frames, axis=0)])
+        full_video = np.concatenate([full_video, np.repeat(full_video[-1:], n_frames, axis=0)])
+        bbox = np.concatenate([bbox, np.repeat(bbox[-1:], n_frames, axis=0)])
+    return wav, video, full_video, bbox
 
 def extract_bbox(video_path, save_path):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -399,7 +463,7 @@ class AVSpeechToAVSpeechPipeline:
         )
         return _dedupe_repeated_tail(pred_str)
 
-    def process_unit2av(self, unit, audio_path, video_path, bbox_path, src_len_tokens=None, speaker_embed_scale=1.0):
+    def process_unit2av(self, unit, audio_path, video_path, bbox_path, speaker_embed_scale=1.0):
         unit = list(map(int, unit.strip().split()))
 
         # Filter out special tokens or language tokens that exceed the unit vocabulary (0-1999)
@@ -420,11 +484,12 @@ class AVSpeechToAVSpeechPipeline:
         }
         sample = utils.move_to_cuda(sample) if self.use_cuda else sample
 
-        if src_len_tokens is not None:
-            # AV-HuBERT source is 100Hz, but UnitAVRenderer vocoder expects 50Hz!
-            # Scale duration target down to 50Hz to maintain original playback speed.
-            self.unit2av_model.model.tgt_dur = src_len_tokens // 2
-
+        # No tgt_dur forced here -- the vocoder generates at its own natural
+        # predicted pace. Matching the source video's duration (when
+        # warranted) is handled afterwards in main() by appending real
+        # trailing silence rather than distorting phoneme durations, gated by
+        # how slowly/pausily the *source* speaker actually talks (see
+        # _measure_pause_ratio/_source_pace_factor/_pad_with_silence).
         with torch.cuda.amp.autocast():
             wav, video, full_video, bbox = self.unit2av_model(sample, video_path, bbox_path, dur_prediction=True)
 
@@ -484,17 +549,10 @@ def main(args):
     _debug_check_repeats("src_unit", src_unit)
     _debug_check_repeats("tgt_unit", tgt_unit)
 
-    # tgt_dur (set from src_len_tokens inside process_unit2av) is what makes
-    # the vocoder stretch/pad its output to match the source video's actual
-    # duration -- without it, output length is just whatever the model's own
-    # duration predictor produces for the (often much shorter or longer)
-    # translated sentence, with nothing forcing A/V sync. src_len_tokens is
-    # derived directly from the source audio's wall-clock duration (at
-    # AV-HuBERT's 100Hz token rate, halved to unit2av's 50Hz inside
-    # process_unit2av) rather than from unit counts, to sidestep any
-    # ambiguity in AV-HuBERT's internal rate conventions.
+    # Used later to decide how much (if any) trailing pause to add so the
+    # translated clip's length tracks the source video's -- see the
+    # pace-matching block below, after tgt_audio is generated.
     src_duration_sec = get_audio_duration(temp_audio_path)
-    src_len_tokens = round(src_duration_sec * 100)
 
     # SpeakerEncoder.preprocess_wav only normalizes volume and trims long
     # silences (VAD) -- it never actually denoises the speech itself. If the
@@ -513,7 +571,6 @@ def main(args):
 
     tgt_audio, tgt_video, full_video, bbox = pipeline.process_unit2av(
         tgt_unit, speaker_ref_path, args.in_vid_path, bbox_path,
-        src_len_tokens=src_len_tokens,
         speaker_embed_scale=args.speaker_embed_scale,
     )
 
@@ -535,6 +592,26 @@ def main(args):
             tgt_audio, tgt_sr = load_audio(restored_path)
             os.remove(restored_path)
         os.remove(presynth_path)
+
+    # The translation was generated at its own natural pace above (no forced
+    # duration target), so it commonly ends up shorter than the source clip.
+    # Rather than always padding the gap out to an exact match (which would
+    # force a fast/continuous talker's translation to run needlessly long),
+    # gate how much gets filled by how slowly/pausily the *source* speaker
+    # actually talks -- a slow, pause-heavy source earns a longer trailing
+    # pause to match; a fast, continuous source keeps its natural (shorter)
+    # length instead of being padded out.
+    gap_sec = src_duration_sec - (len(tgt_audio) / tgt_sr)
+    if gap_sec > 0:
+        pause_ratio = _measure_pause_ratio(temp_audio_path)
+        pace_factor = _source_pace_factor(pause_ratio)
+        target_duration_sec = (len(tgt_audio) / tgt_sr) + pace_factor * gap_sec
+        print(f"DEBUG source pace: gap={gap_sec:.2f}s, pause_ratio={pause_ratio:.3f} -> "
+              f"pace_factor={pace_factor:.3f}, target_duration={target_duration_sec:.2f}s "
+              f"(source was {src_duration_sec:.2f}s)")
+        tgt_audio, tgt_video, full_video, bbox = _pad_with_silence(
+            tgt_audio, tgt_video, full_video, bbox, target_duration_sec, sr=tgt_sr,
+        )
 
     if args.video_renderer == "latentsync":
         # LatentSync does its own face detection/alignment/diffusion sampling/
