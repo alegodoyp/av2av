@@ -399,16 +399,24 @@ class AVSpeechToAVSpeechPipeline:
         )
         return _dedupe_repeated_tail(pred_str)
 
-    def process_unit2av(self, unit, audio_path, video_path, bbox_path, src_len_tokens=None):
+    def process_unit2av(self, unit, audio_path, video_path, bbox_path, src_len_tokens=None, speaker_embed_scale=1.0):
         unit = list(map(int, unit.strip().split()))
-        
+
         # Filter out special tokens or language tokens that exceed the unit vocabulary (0-1999)
         # unit2av model's embedding size is exactly 2000.
         unit = [u for u in unit if u < 2000]
 
+        spkr_embed = self.speaker_encoder.get_embed(audio_path)
+        if speaker_embed_scale != 1.0:
+            # Experimental: the embedding is L2-normalized before this, so
+            # scaling its magnitude is a cheap way to test whether the
+            # vocoder's speaker-conditioning is under-weighted relative to
+            # content -- unvalidated, may help or hurt, hence opt-in only.
+            spkr_embed = spkr_embed * speaker_embed_scale
+
         sample = {
             "code": torch.LongTensor(unit).view(1,-1),
-            "spkr": torch.from_numpy(self.speaker_encoder.get_embed(audio_path)).view(1,1,-1),
+            "spkr": torch.from_numpy(spkr_embed).view(1,1,-1),
         }
         sample = utils.move_to_cuda(sample) if self.use_cuda else sample
 
@@ -488,10 +496,29 @@ def main(args):
     src_duration_sec = get_audio_duration(temp_audio_path)
     src_len_tokens = round(src_duration_sec * 100)
 
+    # SpeakerEncoder.preprocess_wav only normalizes volume and trims long
+    # silences (VAD) -- it never actually denoises the speech itself. If the
+    # source video's audio has background noise/reverb/compression
+    # artifacts, the extracted embedding partly captures those rather than
+    # just the speaker's voice. Reuse the same VoiceFixer pass that already
+    # measurably helped the *output* audio, but on the *reference* clip the
+    # embedding is extracted from -- untried previously, since audio_restore
+    # was only ever applied after synthesis.
+    speaker_ref_path = temp_audio_path
+    if voice_restorer is not None:
+        cleaned_ref_path = os.path.splitext(args.in_vid_path)[0] + ".speaker_ref.wav"
+        result_path = restore_audio_file(voice_restorer, temp_audio_path, cleaned_ref_path, use_cuda=use_cuda)
+        if result_path == cleaned_ref_path:
+            speaker_ref_path = cleaned_ref_path
+
     tgt_audio, tgt_video, full_video, bbox = pipeline.process_unit2av(
-        tgt_unit, temp_audio_path, args.in_vid_path, bbox_path,
+        tgt_unit, speaker_ref_path, args.in_vid_path, bbox_path,
         src_len_tokens=src_len_tokens,
+        speaker_embed_scale=args.speaker_embed_scale,
     )
+
+    if speaker_ref_path != temp_audio_path and os.path.exists(speaker_ref_path):
+        os.remove(speaker_ref_path)
     tgt_sr = 16000  # unit2av's CodeHiFiGANModel_spk native rate (config.json)
 
     if voice_restorer is not None:
@@ -580,6 +607,13 @@ def cli_main():
         help="Disable VoiceFixer audio restoration post-process (enabled by default). "
              "unit2av's vocoder is capped at 16kHz/8kHz-fmax; this restores full-bandwidth "
              "44.1kHz audio and reduces vocoder noise artifacts."
+    )
+    parser.add_argument(
+        "--speaker-embed-scale", type=float, default=1.0,
+        help="Experimental: multiplies the (L2-normalized) speaker embedding's magnitude "
+             "before it's fed to the vocoder, to test whether speaker-conditioning is "
+             "under-weighted relative to content. 1.0 = unchanged. Unvalidated -- may help "
+             "or hurt voice cloning fidelity; try values like 1.3-1.5 to compare."
     )
     parser.add_argument(
         "--video-renderer", type=str, default="unit2av",
