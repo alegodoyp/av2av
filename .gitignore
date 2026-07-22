@@ -6,6 +6,8 @@ token.json
 token.pickle
 *.json
 !package.json
+# Not a credential -- required config for load_unit2av_model(), and small (~1KB).
+!unit2av/config.json
 
 # Environment
 venv/
@@ -27,3 +29,8 @@ __pycache__/
 *.pyc
 *.pt
 *.pth
+# Speaker-encoder checkpoint, small enough for plain git (~17MB, well under
+# GitHub's 100MB hard limit) -- everything else under checkpoints/ and
+# latentsync_repo/checkpoints/ is multi-hundred-MB to multi-GB and must stay
+# out of git; transfer those via scp instead (see conversation).
+!unit2av/encoder.pt
