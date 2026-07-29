@@ -1,0 +1,360 @@
+/home/alexandregodoy/miniconda3/envs/av2av_env/lib/python3.10/site-packages/librosa/util/files.py:10: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import resource_filename
+2026-07-29 16:55:05 | INFO | av2unit.avhubert.hubert_pretraining | current directory is /mnt/disk/home/alexandregodoy/av2av
+2026-07-29 16:55:05 | INFO | av2unit.avhubert.hubert_pretraining | AVHubertPretrainingTask Config {'_name': 'av_hubert_unit_pretraining', 'data': '/mnt/ssd/js/research/av_hubert/avhubert_unit/labels/lrs2lrs3vox2avspmtedx', 'labels': ['mhubert1000_even', 'mhubert1000_odd'], 'label_dir': '/mnt/ssd/js/research/av_hubert/avhubert_unit/labels/lrs2lrs3vox2avspmtedx', 'label_rate': 25, 'sample_rate': 25, 'normalize': True, 'enable_padding': False, 'max_sample_size': 2000, 'min_sample_size': 5, 'max_trim_sample_size': 400, 'single_target': False, 'random_crop': True, 'pad_audio': False, 'pdb': False, 'stack_order_audio': 4, 'skip_verify': False, 'image_aug': True, 'image_crop_size': 88, 'image_mean': 0.421, 'image_std': 0.165, 'modalities': ['audio', 'video'], 'is_s2s': False, 'tokenizer_bpe_name': None, 'tokenizer_bpe_model': None, 'noise_wav': '/mnt/ssd/js/dataset/MUSAN/tsv/all', 'noise_prob': 0.25, 'noise_snr': '0', 'noise_num': 1, 'fine_tuning': False}
+2026-07-29 16:55:05 | INFO | av2unit.avhubert.hubert | HubertModel Config: {'_name': 'av_hubert', 'label_rate': 25, 'input_modality': '${task.input_modality}', 'extractor_mode': default, 'encoder_layers': 24, 'encoder_embed_dim': 1024, 'encoder_ffn_embed_dim': 4096, 'encoder_attention_heads': 16, 'activation_fn': gelu, 'dropout': 0.1, 'attention_dropout': 0.1, 'activation_dropout': 0.0, 'encoder_layerdrop': 0.05, 'dropout_input': 0.1, 'dropout_features': 0.1, 'final_dim': 256, 'untie_final_proj': True, 'layer_norm_first': True, 'conv_feature_layers': '[(512,10,5)] + [(512,3,2)] * 4 + [(512,2,2)] * 2', 'conv_bias': False, 'logit_temp': 0.1, 'target_glu': False, 'feature_grad_mult': 0.1, 'mask_length_audio': 10, 'mask_prob_audio': 0.8, 'mask_length_image': 5, 'mask_prob_image': 0.3, 'mask_selection': static, 'mask_other': 0.0, 'no_mask_overlap': False, 'mask_min_space': 1, 'mask_channel_length': 10, 'mask_channel_prob': 0.0, 'mask_channel_selection': static, 'mask_channel_other': 0.0, 'no_mask_channel_overlap': False, 'mask_channel_min_space': 1, 'conv_pos': 128, 'conv_pos_groups': 16, 'latent_temp': [2.0, 0.5, 0.999995], 'skip_masked': False, 'skip_nomask': False, 'resnet_relu_type': 'prelu', 'resnet_weights': None, 'sim_type': 'cosine', 'sub_encoder_layers': 0, 'audio_feat_dim': 104, 'modality_dropout': 0.5, 'audio_dropout': 0.5, 'modality_fuse': 'concat', 'selection_type': 'same_seq', 'masking_type': 'input', 'decoder_embed_dim': 768, 'decoder_ffn_embed_dim': 3072, 'decoder_layers': 6, 'decoder_layerdrop': 0.0, 'decoder_attention_heads': 4, 'decoder_learned_pos': False, 'decoder_normalize_before': False, 'no_token_positional_embeddings': False, 'decoder_dropout': 0.1, 'decoder_attention_dropout': 0.1, 'decoder_activation_dropout': 0.0, 'max_target_positions': 2048, 'share_decoder_input_output_embed': False, 'no_scale_embedding': True, 'layer_type': transformer, 'checkpoint_activations': False, 'required_seq_len_multiple': 1}
+/home/alexandregodoy/miniconda3/envs/av2av_env/lib/python3.10/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+2026-07-29 16:55:10 | INFO | av2unit.avhubert.hubert_dataset | image transform: Compose(
+    Normalize(mean=0.0, std=255.0)
+    <av2unit.avhubert.utils.CenterCrop object at 0x7c5fe4649720>
+    Normalize(mean=0.421, std=0.165)
+)
+2026-07-29 16:55:14 | INFO | fairseq.tasks.multilingual_denoising | dictionary: 1024 types
+/mnt/disk/home/alexandregodoy/av2av/unit2av/model.py:21: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  state_dict = torch.load(checkpoint_path)
+/mnt/disk/home/alexandregodoy/av2av/unit2av/model_speaker_encoder.py:78: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  state_dict = torch.load(checkpoint_path)
+/home/alexandregodoy/miniconda3/envs/av2av_env/lib/python3.10/site-packages/voicefixer/vocoder/model/util.py:111: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  checkpoint = torch.load(checkpoint_path, map_location=device)
+/home/alexandregodoy/miniconda3/envs/av2av_env/lib/python3.10/site-packages/voicefixer/base.py:23: UserWarning: Environment variable TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD detected, since the`weights_only` argument was not explicitly passed to `torch.load`, forcing weights_only=False.
+  saved_state_dict = torch.load(self.analysis_module_ckpt)
+/mnt/disk/home/alexandregodoy/av2av/inference.py:301: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast():
+/mnt/disk/home/alexandregodoy/av2av/inference.py:389: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast():
+/mnt/disk/home/alexandregodoy/av2av/inference.py:431: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast():
+[1;31m2026-07-29 16:56:01.481914036 [E:onnxruntime:Default, provider_bridge_ort.cc:2036 TryGetProviderInfo_CUDA] /onnxruntime_src/onnxruntime/core/session/provider_bridge_ort.cc:1695 onnxruntime::Provider& onnxruntime::ProviderLibrary::Get() [ONNXRuntimeError] : 1 : FAIL : Failed to load library libonnxruntime_providers_cuda.so with error: libnvrtc.so.12: cannot open shared object file: No such file or directory
+[m
+[1;31m2026-07-29 16:56:01.666363266 [E:onnxruntime:Default, provider_bridge_ort.cc:2036 TryGetProviderInfo_CUDA] /onnxruntime_src/onnxruntime/core/session/provider_bridge_ort.cc:1695 onnxruntime::Provider& onnxruntime::ProviderLibrary::Get() [ONNXRuntimeError] : 1 : FAIL : Failed to load library libonnxruntime_providers_cuda.so with error: libnvrtc.so.12: cannot open shared object file: No such file or directory
+[m
+[1;31m2026-07-29 16:56:01.710086177 [E:onnxruntime:Default, provider_bridge_ort.cc:2036 TryGetProviderInfo_CUDA] /onnxruntime_src/onnxruntime/core/session/provider_bridge_ort.cc:1695 onnxruntime::Provider& onnxruntime::ProviderLibrary::Get() [ONNXRuntimeError] : 1 : FAIL : Failed to load library libonnxruntime_providers_cuda.so with error: libnvrtc.so.12: cannot open shared object file: No such file or directory
+[m
+[1;31m2026-07-29 16:56:01.752923804 [E:onnxruntime:Default, provider_bridge_ort.cc:2036 TryGetProviderInfo_CUDA] /onnxruntime_src/onnxruntime/core/session/provider_bridge_ort.cc:1695 onnxruntime::Provider& onnxruntime::ProviderLibrary::Get() [ONNXRuntimeError] : 1 : FAIL : Failed to load library libonnxruntime_providers_cuda.so with error: libnvrtc.so.12: cannot open shared object file: No such file or directory
+[m
+[1;31m2026-07-29 16:56:01.849028954 [E:onnxruntime:Default, provider_bridge_ort.cc:2036 TryGetProviderInfo_CUDA] /onnxruntime_src/onnxruntime/core/session/provider_bridge_ort.cc:1695 onnxruntime::Provider& onnxruntime::ProviderLibrary::Get() [ONNXRuntimeError] : 1 : FAIL : Failed to load library libonnxruntime_providers_cuda.so with error: libnvrtc.so.12: cannot open shared object file: No such file or directory
+[m
+Input video path: /mnt/disk/home/alexandregodoy/av2av/results/_latentsync_tmp/driving_video.mp4
+Input audio path: /mnt/disk/home/alexandregodoy/av2av/results/_latentsync_tmp/driving_audio.wav
+Loaded checkpoint path: checkpoints/latentsync_unet.pt
+Initial seed: 1247
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+model ignore: checkpoints/auxiliary/models/buffalo_l/1k3d68.onnx landmark_3d_68
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+find model: checkpoints/auxiliary/models/buffalo_l/2d106det.onnx landmark_2d_106 ['None', 3, 192, 192] 0.0 1.0
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+find model: checkpoints/auxiliary/models/buffalo_l/det_10g.onnx detection [1, 3, '?', '?'] 127.5 128.0
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+model ignore: checkpoints/auxiliary/models/buffalo_l/genderage.onnx genderage
+Applied providers: ['CPUExecutionProvider'], with options: {'CPUExecutionProvider': {}}
+model ignore: checkpoints/auxiliary/models/buffalo_l/w600k_r50.onnx recognition
+set det-size: (512, 512)
+video in 25 FPS, audio idx in 50FPS
+Affine transforming 301 faces...
+  0%|          | 0/301 [00:00<?, ?it/s]  0%|          | 1/301 [00:00<00:48,  6.19it/s]  1%|          | 2/301 [00:00<00:38,  7.81it/s]  1%|          | 3/301 [00:00<00:34,  8.51it/s]  1%|▏         | 4/301 [00:00<00:33,  8.75it/s]  2%|▏         | 5/301 [00:00<00:34,  8.55it/s]  2%|▏         | 6/301 [00:00<00:33,  8.70it/s]  2%|▏         | 7/301 [00:00<00:33,  8.88it/s]  3%|▎         | 8/301 [00:00<00:34,  8.59it/s]  3%|▎         | 9/301 [00:01<00:34,  8.41it/s]  3%|▎         | 10/301 [00:01<00:34,  8.47it/s]  4%|▎         | 11/301 [00:01<00:34,  8.37it/s]  4%|▍         | 12/301 [00:01<00:32,  8.76it/s]  4%|▍         | 13/301 [00:01<00:33,  8.73it/s]  5%|▍         | 14/301 [00:01<00:34,  8.41it/s]  5%|▍         | 15/301 [00:01<00:32,  8.75it/s]  5%|▌         | 16/301 [00:01<00:32,  8.90it/s]  6%|▌         | 17/301 [00:01<00:32,  8.84it/s]  6%|▌         | 18/301 [00:02<00:32,  8.58it/s]  6%|▋         | 19/301 [00:02<00:32,  8.58it/s]  7%|▋         | 20/301 [00:02<00:33,  8.33it/s]  7%|▋         | 21/301 [00:02<00:32,  8.51it/s]  7%|▋         | 22/301 [00:02<00:32,  8.68it/s]  8%|▊         | 23/301 [00:02<00:31,  8.88it/s]  8%|▊         | 24/301 [00:02<00:31,  8.69it/s]  8%|▊         | 25/301 [00:02<00:31,  8.79it/s]  9%|▊         | 26/301 [00:03<00:31,  8.83it/s]  9%|▉         | 27/301 [00:03<00:30,  9.09it/s]  9%|▉         | 28/301 [00:03<00:30,  8.98it/s] 10%|▉         | 29/301 [00:03<00:31,  8.66it/s] 10%|▉         | 30/301 [00:03<00:31,  8.68it/s] 10%|█         | 31/301 [00:03<00:31,  8.65it/s] 11%|█         | 32/301 [00:03<00:31,  8.60it/s] 11%|█         | 33/301 [00:03<00:31,  8.49it/s] 11%|█▏        | 34/301 [00:03<00:30,  8.75it/s] 12%|█▏        | 35/301 [00:04<00:30,  8.83it/s] 12%|█▏        | 36/301 [00:04<00:30,  8.81it/s] 12%|█▏        | 37/301 [00:04<00:31,  8.48it/s] 13%|█▎        | 38/301 [00:04<00:31,  8.34it/s] 13%|█▎        | 39/301 [00:04<00:30,  8.64it/s] 13%|█▎        | 40/301 [00:04<00:30,  8.58it/s] 14%|█▎        | 41/301 [00:04<00:29,  8.91it/s] 14%|█▍        | 42/301 [00:04<00:30,  8.44it/s] 14%|█▍        | 43/301 [00:04<00:29,  8.83it/s] 15%|█▍        | 44/301 [00:05<00:29,  8.77it/s] 15%|█▍        | 45/301 [00:05<00:28,  8.88it/s] 15%|█▌        | 46/301 [00:05<00:29,  8.65it/s] 16%|█▌        | 47/301 [00:05<00:29,  8.75it/s] 16%|█▌        | 48/301 [00:05<00:29,  8.56it/s] 16%|█▋        | 49/301 [00:05<00:28,  8.80it/s] 17%|█▋        | 50/301 [00:05<00:28,  8.75it/s] 17%|█▋        | 51/301 [00:05<00:29,  8.57it/s] 17%|█▋        | 52/301 [00:06<00:28,  8.69it/s] 18%|█▊        | 53/301 [00:06<00:29,  8.48it/s] 18%|█▊        | 54/301 [00:06<00:29,  8.47it/s] 18%|█▊        | 55/301 [00:06<00:27,  8.81it/s] 19%|█▊        | 56/301 [00:06<00:27,  8.77it/s] 19%|█▉        | 57/301 [00:06<00:28,  8.70it/s] 19%|█▉        | 58/301 [00:06<00:27,  8.74it/s] 20%|█▉        | 59/301 [00:06<00:27,  8.83it/s] 20%|█▉        | 60/301 [00:06<00:26,  8.94it/s] 20%|██        | 61/301 [00:07<00:26,  9.03it/s] 21%|██        | 62/301 [00:07<00:26,  8.87it/s] 21%|██        | 63/301 [00:07<00:26,  8.96it/s] 21%|██▏       | 64/301 [00:07<00:26,  8.81it/s] 22%|██▏       | 65/301 [00:07<00:27,  8.65it/s] 22%|██▏       | 66/301 [00:07<00:26,  8.90it/s] 22%|██▏       | 67/301 [00:07<00:27,  8.40it/s] 23%|██▎       | 68/301 [00:07<00:27,  8.52it/s] 23%|██▎       | 69/301 [00:07<00:27,  8.38it/s] 23%|██▎       | 70/301 [00:08<00:27,  8.53it/s] 24%|██▎       | 71/301 [00:08<00:27,  8.47it/s] 24%|██▍       | 72/301 [00:08<00:26,  8.57it/s] 24%|██▍       | 73/301 [00:08<00:25,  8.79it/s] 25%|██▍       | 74/301 [00:08<00:25,  8.98it/s] 25%|██▍       | 75/301 [00:08<00:25,  8.95it/s] 25%|██▌       | 76/301 [00:08<00:25,  8.87it/s] 26%|██▌       | 77/301 [00:08<00:25,  8.73it/s] 26%|██▌       | 78/301 [00:08<00:25,  8.91it/s] 26%|██▌       | 79/301 [00:09<00:24,  9.09it/s] 27%|██▋       | 80/301 [00:09<00:24,  9.10it/s] 27%|██▋       | 81/301 [00:09<00:23,  9.22it/s] 27%|██▋       | 82/301 [00:09<00:24,  9.03it/s] 28%|██▊       | 83/301 [00:09<00:24,  9.08it/s] 28%|██▊       | 84/301 [00:09<00:24,  8.83it/s] 28%|██▊       | 85/301 [00:09<00:24,  8.77it/s] 29%|██▊       | 86/301 [00:09<00:24,  8.70it/s] 29%|██▉       | 87/301 [00:10<00:24,  8.71it/s] 29%|██▉       | 88/301 [00:10<00:24,  8.78it/s] 30%|██▉       | 89/301 [00:10<00:23,  9.04it/s] 30%|██▉       | 90/301 [00:10<00:23,  9.14it/s] 30%|███       | 91/301 [00:10<00:23,  9.12it/s] 31%|███       | 92/301 [00:10<00:22,  9.11it/s] 31%|███       | 93/301 [00:10<00:23,  8.97it/s] 31%|███       | 94/301 [00:10<00:23,  8.98it/s] 32%|███▏      | 95/301 [00:10<00:23,  8.92it/s] 32%|███▏      | 96/301 [00:11<00:23,  8.56it/s] 32%|███▏      | 97/301 [00:11<00:23,  8.75it/s] 33%|███▎      | 98/301 [00:11<00:22,  8.94it/s] 33%|███▎      | 99/301 [00:11<00:21,  9.21it/s] 33%|███▎      | 100/301 [00:11<00:22,  8.90it/s] 34%|███▎      | 101/301 [00:11<00:22,  9.04it/s] 34%|███▍      | 102/301 [00:11<00:21,  9.12it/s] 34%|███▍      | 103/301 [00:11<00:21,  9.08it/s] 35%|███▍      | 104/301 [00:11<00:22,  8.58it/s] 35%|███▌      | 106/301 [00:12<00:21,  8.94it/s] 36%|███▌      | 107/301 [00:12<00:21,  8.90it/s] 36%|███▌      | 108/301 [00:12<00:22,  8.76it/s] 36%|███▌      | 109/301 [00:12<00:21,  8.83it/s] 37%|███▋      | 110/301 [00:12<00:21,  9.06it/s] 37%|███▋      | 111/301 [00:12<00:21,  8.73it/s] 37%|███▋      | 112/301 [00:12<00:21,  8.85it/s] 38%|███▊      | 113/301 [00:12<00:21,  8.56it/s] 38%|███▊      | 114/301 [00:13<00:21,  8.83it/s] 38%|███▊      | 115/301 [00:13<00:20,  9.06it/s] 39%|███▊      | 116/301 [00:13<00:21,  8.53it/s] 39%|███▉      | 117/301 [00:13<00:20,  8.78it/s] 39%|███▉      | 118/301 [00:13<00:20,  8.84it/s] 40%|███▉      | 119/301 [00:13<00:20,  8.73it/s] 40%|███▉      | 120/301 [00:13<00:20,  8.62it/s] 40%|████      | 121/301 [00:13<00:20,  8.69it/s] 41%|████      | 122/301 [00:13<00:20,  8.82it/s] 41%|████      | 123/301 [00:14<00:20,  8.76it/s] 41%|████      | 124/301 [00:14<00:19,  9.02it/s] 42%|████▏     | 125/301 [00:14<00:19,  8.86it/s] 42%|████▏     | 126/301 [00:14<00:19,  8.89it/s] 42%|████▏     | 127/301 [00:14<00:20,  8.50it/s] 43%|████▎     | 128/301 [00:14<00:19,  8.85it/s] 43%|████▎     | 129/301 [00:14<00:19,  8.87it/s] 43%|████▎     | 130/301 [00:14<00:19,  8.70it/s] 44%|████▎     | 131/301 [00:14<00:19,  8.80it/s] 44%|████▍     | 132/301 [00:15<00:19,  8.55it/s] 44%|████▍     | 133/301 [00:15<00:19,  8.62it/s] 45%|████▍     | 134/301 [00:15<00:19,  8.63it/s] 45%|████▍     | 135/301 [00:15<00:18,  8.76it/s] 45%|████▌     | 136/301 [00:15<00:19,  8.62it/s] 46%|████▌     | 137/301 [00:15<00:19,  8.52it/s] 46%|████▌     | 138/301 [00:15<00:18,  8.63it/s] 46%|████▌     | 139/301 [00:15<00:18,  8.70it/s] 47%|████▋     | 140/301 [00:16<00:18,  8.73it/s] 47%|████▋     | 141/301 [00:16<00:18,  8.85it/s] 47%|████▋     | 142/301 [00:16<00:17,  9.05it/s] 48%|████▊     | 143/301 [00:16<00:17,  9.15it/s] 48%|████▊     | 144/301 [00:16<00:17,  9.11it/s] 48%|████▊     | 145/301 [00:16<00:18,  8.47it/s] 49%|████▊     | 146/301 [00:16<00:18,  8.49it/s] 49%|████▉     | 147/301 [00:16<00:17,  8.62it/s] 49%|████▉     | 148/301 [00:16<00:17,  8.65it/s] 50%|████▉     | 149/301 [00:17<00:17,  8.80it/s] 50%|████▉     | 150/301 [00:17<00:16,  8.99it/s] 50%|█████     | 151/301 [00:17<00:16,  8.92it/s] 50%|█████     | 152/301 [00:17<00:16,  8.84it/s] 51%|█████     | 153/301 [00:17<00:16,  8.94it/s] 51%|█████     | 154/301 [00:17<00:16,  9.03it/s] 51%|█████▏    | 155/301 [00:17<00:16,  8.59it/s] 52%|█████▏    | 156/301 [00:17<00:16,  8.93it/s] 52%|█████▏    | 158/301 [00:18<00:15,  9.32it/s] 53%|█████▎    | 159/301 [00:18<00:15,  9.13it/s] 53%|█████▎    | 160/301 [00:18<00:15,  9.09it/s] 53%|█████▎    | 161/301 [00:18<00:15,  9.13it/s] 54%|█████▍    | 162/301 [00:18<00:15,  9.07it/s] 54%|█████▍    | 163/301 [00:18<00:15,  9.09it/s] 54%|█████▍    | 164/301 [00:18<00:15,  8.94it/s] 55%|█████▍    | 165/301 [00:18<00:15,  8.90it/s] 55%|█████▌    | 166/301 [00:18<00:14,  9.02it/s] 55%|█████▌    | 167/301 [00:19<00:15,  8.91it/s] 56%|█████▌    | 168/301 [00:19<00:15,  8.85it/s] 56%|█████▌    | 169/301 [00:19<00:14,  9.07it/s] 56%|█████▋    | 170/301 [00:19<00:14,  9.00it/s] 57%|█████▋    | 171/301 [00:19<00:14,  8.76it/s] 57%|█████▋    | 172/301 [00:19<00:14,  9.03it/s] 57%|█████▋    | 173/301 [00:19<00:15,  8.45it/s] 58%|█████▊    | 174/301 [00:19<00:14,  8.71it/s] 58%|█████▊    | 175/301 [00:19<00:14,  8.75it/s] 58%|█████▊    | 176/301 [00:20<00:14,  8.65it/s] 59%|█████▉    | 177/301 [00:20<00:14,  8.57it/s] 59%|█████▉    | 178/301 [00:20<00:14,  8.73it/s] 59%|█████▉    | 179/301 [00:20<00:14,  8.61it/s] 60%|█████▉    | 180/301 [00:20<00:14,  8.19it/s] 60%|██████    | 181/301 [00:20<00:14,  8.36it/s] 60%|██████    | 182/301 [00:20<00:13,  8.59it/s] 61%|██████    | 183/301 [00:20<00:13,  8.67it/s] 61%|██████    | 184/301 [00:20<00:12,  9.02it/s] 61%|██████▏   | 185/301 [00:21<00:12,  8.99it/s] 62%|██████▏   | 186/301 [00:21<00:12,  9.15it/s] 62%|██████▏   | 187/301 [00:21<00:12,  9.08it/s] 62%|██████▏   | 188/301 [00:21<00:12,  9.03it/s] 63%|██████▎   | 189/301 [00:21<00:12,  9.28it/s] 63%|██████▎   | 190/301 [00:21<00:12,  9.11it/s] 63%|██████▎   | 191/301 [00:21<00:12,  9.13it/s] 64%|██████▍   | 192/301 [00:21<00:12,  8.89it/s] 64%|██████▍   | 193/301 [00:21<00:12,  8.87it/s] 64%|██████▍   | 194/301 [00:22<00:11,  9.04it/s] 65%|██████▍   | 195/301 [00:22<00:11,  9.23it/s] 65%|██████▌   | 196/301 [00:22<00:11,  9.15it/s] 65%|██████▌   | 197/301 [00:22<00:11,  9.09it/s] 66%|██████▌   | 198/301 [00:22<00:11,  9.11it/s] 66%|██████▌   | 199/301 [00:22<00:11,  8.98it/s] 66%|██████▋   | 200/301 [00:22<00:11,  8.92it/s] 67%|██████▋   | 201/301 [00:22<00:11,  8.72it/s] 67%|██████▋   | 203/301 [00:23<00:10,  9.14it/s] 68%|██████▊   | 204/301 [00:23<00:10,  8.92it/s] 68%|██████▊   | 205/301 [00:23<00:10,  8.78it/s] 68%|██████▊   | 206/301 [00:23<00:11,  8.54it/s] 69%|██████▉   | 207/301 [00:23<00:10,  8.70it/s] 69%|██████▉   | 208/301 [00:23<00:10,  8.62it/s] 69%|██████▉   | 209/301 [00:23<00:10,  8.72it/s] 70%|███████   | 211/301 [00:23<00:09,  9.09it/s] 70%|███████   | 212/301 [00:24<00:10,  8.81it/s] 71%|███████   | 213/301 [00:24<00:09,  8.86it/s] 71%|███████   | 214/301 [00:24<00:09,  8.79it/s] 71%|███████▏  | 215/301 [00:24<00:09,  8.92it/s] 72%|███████▏  | 216/301 [00:24<00:09,  8.70it/s] 72%|███████▏  | 217/301 [00:24<00:09,  8.73it/s] 72%|███████▏  | 218/301 [00:24<00:09,  8.96it/s] 73%|███████▎  | 219/301 [00:24<00:09,  8.81it/s] 73%|███████▎  | 220/301 [00:25<00:09,  8.86it/s] 73%|███████▎  | 221/301 [00:25<00:08,  8.92it/s] 74%|███████▍  | 222/301 [00:25<00:09,  8.70it/s] 74%|███████▍  | 223/301 [00:25<00:08,  8.68it/s] 74%|███████▍  | 224/301 [00:25<00:08,  8.88it/s] 75%|███████▍  | 225/301 [00:25<00:08,  8.62it/s] 75%|███████▌  | 226/301 [00:25<00:08,  8.86it/s] 75%|███████▌  | 227/301 [00:25<00:08,  9.06it/s] 76%|███████▌  | 228/301 [00:25<00:08,  8.91it/s] 76%|███████▌  | 229/301 [00:26<00:08,  8.58it/s] 76%|███████▋  | 230/301 [00:26<00:08,  8.80it/s] 77%|███████▋  | 231/301 [00:26<00:07,  8.83it/s] 77%|███████▋  | 232/301 [00:26<00:07,  8.94it/s] 77%|███████▋  | 233/301 [00:26<00:07,  8.96it/s] 78%|███████▊  | 234/301 [00:26<00:07,  8.83it/s] 78%|███████▊  | 235/301 [00:26<00:07,  8.70it/s] 78%|███████▊  | 236/301 [00:26<00:07,  8.92it/s] 79%|███████▊  | 237/301 [00:26<00:07,  8.93it/s] 79%|███████▉  | 238/301 [00:27<00:07,  8.92it/s] 79%|███████▉  | 239/301 [00:27<00:07,  8.83it/s] 80%|███████▉  | 240/301 [00:27<00:06,  8.89it/s] 80%|████████  | 241/301 [00:27<00:07,  8.57it/s] 80%|████████  | 242/301 [00:27<00:06,  8.86it/s] 81%|████████  | 243/301 [00:27<00:06,  8.78it/s] 81%|████████  | 244/301 [00:27<00:06,  8.84it/s] 81%|████████▏ | 245/301 [00:27<00:06,  8.84it/s] 82%|████████▏ | 246/301 [00:27<00:06,  8.82it/s] 82%|████████▏ | 247/301 [00:28<00:06,  8.76it/s] 82%|████████▏ | 248/301 [00:28<00:06,  8.74it/s] 83%|████████▎ | 249/301 [00:28<00:05,  9.04it/s] 83%|████████▎ | 250/301 [00:28<00:05,  9.05it/s] 83%|████████▎ | 251/301 [00:28<00:05,  8.54it/s] 84%|████████▎ | 252/301 [00:28<00:05,  8.63it/s] 84%|████████▍ | 253/301 [00:28<00:05,  8.74it/s] 84%|████████▍ | 254/301 [00:28<00:05,  8.26it/s] 85%|████████▍ | 255/301 [00:29<00:05,  8.34it/s] 85%|████████▌ | 256/301 [00:29<00:05,  8.50it/s] 85%|████████▌ | 257/301 [00:29<00:05,  8.60it/s] 86%|████████▌ | 258/301 [00:29<00:05,  8.52it/s] 86%|████████▌ | 259/301 [00:29<00:04,  8.73it/s] 86%|████████▋ | 260/301 [00:29<00:04,  8.58it/s] 87%|████████▋ | 261/301 [00:29<00:04,  8.55it/s] 87%|████████▋ | 262/301 [00:29<00:04,  8.57it/s] 87%|████████▋ | 263/301 [00:29<00:04,  8.81it/s] 88%|████████▊ | 264/301 [00:30<00:04,  8.76it/s] 88%|████████▊ | 265/301 [00:30<00:03,  9.01it/s] 89%|████████▊ | 267/301 [00:30<00:03,  9.49it/s] 89%|████████▉ | 268/301 [00:30<00:03,  9.30it/s] 89%|████████▉ | 269/301 [00:30<00:03,  9.27it/s] 90%|████████▉ | 270/301 [00:30<00:03,  8.96it/s] 90%|█████████ | 271/301 [00:30<00:03,  8.70it/s] 90%|█████████ | 272/301 [00:30<00:03,  8.85it/s] 91%|█████████ | 273/301 [00:31<00:03,  8.61it/s] 91%|█████████ | 274/301 [00:31<00:03,  8.94it/s] 91%|█████████▏| 275/301 [00:31<00:03,  8.63it/s] 92%|█████████▏| 276/301 [00:31<00:02,  8.82it/s] 92%|█████████▏| 277/301 [00:31<00:02,  8.98it/s] 92%|█████████▏| 278/301 [00:31<00:02,  8.85it/s] 93%|█████████▎| 279/301 [00:31<00:02,  9.12it/s] 93%|█████████▎| 280/301 [00:31<00:02,  8.78it/s] 93%|█████████▎| 281/301 [00:31<00:02,  8.60it/s] 94%|█████████▎| 282/301 [00:32<00:02,  8.61it/s] 94%|█████████▍| 283/301 [00:32<00:02,  8.89it/s] 94%|█████████▍| 284/301 [00:32<00:01,  8.65it/s] 95%|█████████▍| 285/301 [00:32<00:01,  8.62it/s] 95%|█████████▌| 286/301 [00:32<00:01,  8.54it/s] 95%|█████████▌| 287/301 [00:32<00:01,  8.70it/s] 96%|█████████▌| 288/301 [00:32<00:01,  8.86it/s] 96%|█████████▋| 290/301 [00:32<00:01,  8.98it/s] 97%|█████████▋| 291/301 [00:33<00:01,  8.81it/s] 97%|█████████▋| 292/301 [00:33<00:00,  9.00it/s] 97%|█████████▋| 293/301 [00:33<00:00,  8.87it/s] 98%|█████████▊| 294/301 [00:33<00:00,  9.07it/s] 98%|█████████▊| 295/301 [00:33<00:00,  8.95it/s] 98%|█████████▊| 296/301 [00:33<00:00,  8.66it/s] 99%|█████████▊| 297/301 [00:33<00:00,  8.64it/s] 99%|█████████▉| 298/301 [00:33<00:00,  8.70it/s] 99%|█████████▉| 299/301 [00:34<00:00,  8.49it/s]100%|█████████▉| 300/301 [00:34<00:00,  8.76it/s]100%|██████████| 301/301 [00:34<00:00,  8.59it/s]100%|██████████| 301/301 [00:34<00:00,  8.79it/s]
+Doing inference...:   0%|          | 0/19 [00:00<?, ?it/s]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.45it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.20it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.36it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.27it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  4.04it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:01<00:01,  5.67it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.32it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.84it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:02<00:01,  4.45it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.92it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.51it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.96it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.54it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.75it/s]
+Doing inference...:   5%|▌         | 1/19 [00:05<01:32,  5.14s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.46it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.21it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.35it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.26it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  4.03it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:01<00:01,  5.66it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.31it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.83it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:02<00:01,  4.43it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.90it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.49it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.94it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.52it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.74it/s]
+Doing inference...:  11%|█         | 2/19 [00:10<01:27,  5.12s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.45it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.19it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.34it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.24it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  4.01it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.64it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.29it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.81it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:02<00:01,  4.42it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.89it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.48it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.92it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.50it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.72it/s]
+Doing inference...:  16%|█▌        | 3/19 [00:15<01:22,  5.13s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.44it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.17it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.32it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.22it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.98it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.60it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.25it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.77it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.38it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.84it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.44it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.88it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.43it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.68it/s]
+Doing inference...:  21%|██        | 4/19 [00:20<01:17,  5.17s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.44it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.17it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.31it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.20it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.97it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.60it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.26it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.77it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.38it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.84it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.44it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.88it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.47it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.69it/s]
+Doing inference...:  26%|██▋       | 5/19 [00:25<01:12,  5.19s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.44it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.17it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.31it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.20it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.97it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.59it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.25it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.77it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.39it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.85it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.45it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.89it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.48it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.69it/s]
+Doing inference...:  32%|███▏      | 6/19 [00:31<01:07,  5.18s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.44it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.17it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.31it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.20it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.97it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.59it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.25it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.77it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.38it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.84it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.43it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.87it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.46it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.68it/s]
+Doing inference...:  37%|███▋      | 7/19 [00:36<01:02,  5.18s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.44it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.16it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.30it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.19it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.96it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.58it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.23it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.74it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.36it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.81it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.42it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.85it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.44it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.67it/s]
+Doing inference...:  42%|████▏     | 8/19 [00:41<00:57,  5.20s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.43it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.14it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.29it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.17it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.94it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.56it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.22it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.72it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.35it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.80it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.41it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.85it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.45it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.66it/s]
+Doing inference...:  47%|████▋     | 9/19 [00:46<00:52,  5.20s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.44it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.15it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.30it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.19it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.97it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.59it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.25it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.76it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.37it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.83it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.43it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.86it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.46it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.68it/s]
+Doing inference...:  53%|█████▎    | 10/19 [00:51<00:46,  5.21s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.43it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.14it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.29it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.17it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.95it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.56it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.22it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.73it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.35it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.80it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.41it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.84it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.43it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.65it/s]
+Doing inference...:  58%|█████▊    | 11/19 [00:57<00:41,  5.22s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.43it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.13it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.28it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.16it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.93it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.54it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.21it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.71it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.33it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.78it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.39it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.82it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.41it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.63it/s]
+Doing inference...:  63%|██████▎   | 12/19 [01:02<00:36,  5.22s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.43it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.12it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.27it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.15it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.92it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.53it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.20it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.70it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.33it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.78it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.39it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.81it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.42it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.63it/s]
+Doing inference...:  68%|██████▊   | 13/19 [01:07<00:31,  5.23s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.42it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.10it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.24it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.11it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.89it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:02,  5.49it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.17it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.66it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.29it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.74it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.35it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.77it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.38it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.60it/s]
+Doing inference...:  74%|███████▎  | 14/19 [01:12<00:26,  5.25s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.42it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.11it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.25it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.11it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.90it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:01,  5.51it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.18it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.67it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.30it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.74it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.36it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.78it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.39it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.61it/s]
+Doing inference...:  79%|███████▉  | 15/19 [01:18<00:21,  5.26s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.42it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.11it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.25it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.12it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.90it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:02,  5.50it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.16it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.65it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.29it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.74it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.35it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.77it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.37it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.60it/s]
+Doing inference...:  84%|████████▍ | 16/19 [01:23<00:15,  5.26s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.41it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.10it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.25it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.11it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.88it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:02,  5.48it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.16it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.64it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.28it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.72it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.33it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.75it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.36it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.58it/s]
+Doing inference...:  89%|████████▉ | 17/19 [01:28<00:10,  5.28s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:13,  1.41it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:04,  4.08it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.22it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.08it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  3.86it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:02<00:02,  5.46it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.14it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.62it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:03<00:01,  4.26it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  5.69it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.32it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  5.72it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.34it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.56it/s]
+Doing inference...:  95%|█████████▍| 18/19 [01:34<00:05,  5.29s/it]
+Sample frames: 16:   0%|          | 0/20 [00:00<?, ?it/s][A
+Sample frames: 16:   5%|▌         | 1/20 [00:00<00:12,  1.49it/s][A
+Sample frames: 16:  15%|█▌        | 3/20 [00:00<00:03,  4.33it/s][A
+Sample frames: 16:  20%|██        | 4/20 [00:01<00:04,  3.39it/s][A
+Sample frames: 16:  30%|███       | 6/20 [00:01<00:02,  5.36it/s][A
+Sample frames: 16:  35%|███▌      | 7/20 [00:01<00:03,  4.09it/s][A
+Sample frames: 16:  45%|████▌     | 9/20 [00:01<00:01,  5.79it/s][A
+Sample frames: 16:  50%|█████     | 10/20 [00:02<00:02,  4.38it/s][A
+Sample frames: 16:  60%|██████    | 12/20 [00:02<00:01,  5.96it/s][A
+Sample frames: 16:  65%|██████▌   | 13/20 [00:02<00:01,  4.52it/s][A
+Sample frames: 16:  75%|███████▌  | 15/20 [00:03<00:00,  6.04it/s][A
+Sample frames: 16:  80%|████████  | 16/20 [00:03<00:00,  4.55it/s][A
+Sample frames: 16:  90%|█████████ | 18/20 [00:03<00:00,  6.05it/s][A
+Sample frames: 16:  95%|█████████▌| 19/20 [00:04<00:00,  4.59it/s][ASample frames: 16: 100%|██████████| 20/20 [00:04<00:00,  4.83it/s]
+Doing inference...: 100%|██████████| 19/19 [01:39<00:00,  5.21s/it]Doing inference...: 100%|██████████| 19/19 [01:39<00:00,  5.21s/it]
+Restoring 303 faces...
+  0%|          | 0/303 [00:00<?, ?it/s]  1%|          | 3/303 [00:00<00:10, 27.80it/s]  5%|▍         | 14/303 [00:00<00:03, 72.73it/s]  8%|▊         | 24/303 [00:00<00:03, 84.68it/s] 11%|█         | 34/303 [00:00<00:02, 90.55it/s] 15%|█▍        | 45/303 [00:00<00:02, 94.63it/s] 18%|█▊        | 56/303 [00:00<00:02, 97.14it/s] 22%|██▏       | 66/303 [00:00<00:02, 95.31it/s] 25%|██▌       | 77/303 [00:00<00:02, 97.39it/s] 29%|██▊       | 87/303 [00:00<00:02, 94.44it/s] 32%|███▏      | 98/303 [00:01<00:02, 96.43it/s] 36%|███▌      | 109/303 [00:01<00:01, 98.40it/s] 40%|███▉      | 120/303 [00:01<00:01, 99.79it/s] 43%|████▎     | 130/303 [00:01<00:01, 98.68it/s] 46%|████▌     | 140/303 [00:01<00:01, 96.29it/s] 50%|████▉     | 151/303 [00:01<00:01, 98.25it/s] 53%|█████▎    | 162/303 [00:01<00:01, 99.56it/s] 57%|█████▋    | 172/303 [00:01<00:01, 98.43it/s] 60%|██████    | 183/303 [00:01<00:01, 100.39it/s] 64%|██████▍   | 194/303 [00:02<00:01, 100.77it/s] 68%|██████▊   | 205/303 [00:02<00:00, 101.03it/s] 71%|███████▏  | 216/303 [00:02<00:00, 101.66it/s] 75%|███████▍  | 227/303 [00:02<00:00, 99.16it/s]  78%|███████▊  | 237/303 [00:02<00:00, 98.93it/s] 82%|████████▏ | 248/303 [00:02<00:00, 100.34it/s] 85%|████████▌ | 259/303 [00:02<00:00, 101.00it/s] 89%|████████▉ | 270/303 [00:02<00:00, 102.05it/s] 93%|█████████▎| 281/303 [00:02<00:00, 103.34it/s] 96%|█████████▋| 292/303 [00:02<00:00, 101.75it/s]100%|██████████| 303/303 [00:03<00:00, 102.46it/s]100%|██████████| 303/303 [00:03<00:00, 97.68it/s] 
+Removing weight norm...
+Warning: samples/video1.lip.mp4 not found. Using raw video samples/video1.mp4 instead.
+DEBUG unit2unit input: raw_len=1618, reduced_len=674 (encoder sees reduced_len+2)
+DEBUG unit2unit: depth=0, splitting 674 tokens into 2 chunk(s) at pause-aligned points [356]
+DEBUG unit2unit: translating chunk 1/2 (356 tokens) at depth 0
+DEBUG unit2unit: max_token=1008, min_token=0, vocab_size=1024
+DEBUG unit2unit: translating chunk 2/2 (318 tokens) at depth 0
+DEBUG unit2unit: max_token=1008, min_token=0, vocab_size=1024
+DEBUG repeat-check [src_unit]: 1618 tokens
+DEBUG repeat-check [src_unit]: FOUND a 8-gram repeated 263x at token positions [1348, 1349, 1350, 1351, 1352, 1353, 1354, 1355, 1356, 1357, 1358, 1359, 1360, 1361, 1362, 1363, 1364, 1365, 1366, 1367, 1368, 1369, 1370, 1371, 1372, 1373, 1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1398, 1399, 1400, 1401, 1402, 1403, 1404, 1405, 1406, 1407, 1408, 1409, 1410, 1411, 1412, 1413, 1414, 1415, 1416, 1417, 1418, 1419, 1420, 1421, 1422, 1423, 1424, 1425, 1426, 1427, 1428, 1429, 1430, 1431, 1432, 1433, 1434, 1435, 1436, 1437, 1438, 1439, 1440, 1441, 1442, 1443, 1444, 1445, 1446, 1447, 1448, 1449, 1450, 1451, 1452, 1453, 1454, 1455, 1456, 1457, 1458, 1459, 1460, 1461, 1462, 1463, 1464, 1465, 1466, 1467, 1468, 1469, 1470, 1471, 1472, 1473, 1474, 1475, 1476, 1477, 1478, 1479, 1480, 1481, 1482, 1483, 1484, 1485, 1486, 1487, 1488, 1489, 1490, 1491, 1492, 1493, 1494, 1495, 1496, 1497, 1498, 1499, 1500, 1501, 1502, 1503, 1504, 1505, 1506, 1507, 1508, 1509, 1510, 1511, 1512, 1513, 1514, 1515, 1516, 1517, 1518, 1519, 1520, 1521, 1522, 1523, 1524, 1525, 1526, 1527, 1528, 1529, 1530, 1531, 1532, 1533, 1534, 1535, 1536, 1537, 1538, 1539, 1540, 1541, 1542, 1543, 1544, 1545, 1546, 1547, 1548, 1549, 1550, 1551, 1552, 1553, 1554, 1555, 1556, 1557, 1558, 1559, 1560, 1561, 1562, 1563, 1564, 1565, 1566, 1567, 1568, 1569, 1570, 1571, 1572, 1573, 1574, 1575, 1576, 1577, 1578, 1579, 1580, 1581, 1582, 1583, 1584, 1585, 1586, 1587, 1588, 1589, 1590, 1591, 1592, 1593, 1594, 1595, 1596, 1597, 1598, 1599, 1600, 1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609, 1610]: 661 661 661 661 661 661 661 661
+DEBUG repeat-check [tgt_unit]: 351 tokens
+DEBUG repeat-check [tgt_unit]: FOUND a 8-gram repeated 2x at token positions [39, 332]: 412 260 323 534 485 948 86 539
+DEBUG CodeHiFiGANModel_spk params: dur_predictor=True, dur_prediction_arg=True, tgt_dur=None
+DEBUG CodeHiFiGANModel_spk: Initial dur_out sum=488, tgt_dur=None
+DEBUG CodeHiFiGANModel_spk: applied baseline 1.3x speech-rate floor, new dur_out sum=603
+DEBUG CodeHiFiGANModel_spk: tgt_dur is None... Skipping Padding.
+DEBUG CodeHiFiGANModel_spk return: wav_out=(torch.Size([1, 1, 192960])), dedup_code_out=(torch.Size([603])), kwargs[code]=torch.Size([1, 351])
