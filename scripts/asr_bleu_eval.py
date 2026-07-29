@@ -5,7 +5,7 @@ import os
 import sacrebleu
 import whisper
 from jiwer import wer
-from transformers import MarianMTModel, MarianTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 
 def get_parser():
@@ -20,7 +20,11 @@ def get_parser():
     parser.add_argument("--results-dir", default="results")
     parser.add_argument("--out-dir", default="_relatorio_dissertacao")
     parser.add_argument("--whisper-model", default="small", help="tiny/base/small/medium/large")
-    parser.add_argument("--mt-model", default="Helsinki-NLP/opus-mt-pt-en")
+    # Helsinki-NLP/opus-mt-pt-en returns 401/RepositoryNotFoundError as of 2026-07-29
+    # (confirmed via a clean, unauthenticated fetch -- not a VM/token issue, the repo
+    # itself is currently inaccessible). NLLB-200-distilled-600M is confirmed public
+    # ("gated": false, "private": false via the HF API) and covers pt->en directly.
+    parser.add_argument("--mt-model", default="facebook/nllb-200-distilled-600M")
     return parser
 
 
@@ -32,8 +36,10 @@ def transcribe(asr_model, path, language=None):
 def translate_pt_en(tokenizer, model, text):
     if not text:
         return ""
+    tokenizer.src_lang = "por_Latn"
     batch = tokenizer([text], return_tensors="pt", padding=True, truncation=True)
-    generated = model.generate(**batch)
+    forced_bos_token_id = tokenizer.convert_tokens_to_ids("eng_Latn")
+    generated = model.generate(**batch, forced_bos_token_id=forced_bos_token_id)
     return tokenizer.decode(generated[0], skip_special_tokens=True)
 
 
@@ -45,8 +51,8 @@ def main():
     asr_model = whisper.load_model(args.whisper_model)
 
     print(f"Loading MT model ({args.mt_model})...")
-    mt_tokenizer = MarianTokenizer.from_pretrained(args.mt_model)
-    mt_model = MarianMTModel.from_pretrained(args.mt_model)
+    mt_tokenizer = AutoTokenizer.from_pretrained(args.mt_model)
+    mt_model = AutoModelForSeq2SeqLM.from_pretrained(args.mt_model)
 
     rows = []
     for v in args.videos:
