@@ -326,3 +326,37 @@ que a rede funciona — seja específico sobre qual foi a razão real), e ofere�
 métrica substituta (diferença de duração áudio-original-vs-gerado) como um proxy
 parcial, deixando claro no texto que é isso — um proxy, não uma medição de sincronia
 labial.
+
+---
+
+## Addendum — as 4 inferências fine-tuned foram geradas (2026-07-29)
+
+Os 4 vídeos `results/video{1,2,3,4}_pt2en_finetuned.mp4` existem e os 4 logs completos
+(`_relatorio_dissertacao/inference_video{1,2,3,4}_finetuned.log`) não mostram nenhum
+traceback/erro/OOM. A ordem confusa de algumas linhas nesses logs (bloco do LatentSync
+aparecendo antes dos prints de debug do `unit2unit`, que deveriam vir primeiro no
+código) é só um artefato de buffering — ao passar por `tee`, o stdout do Python deixa
+de ser line-buffered (terminal) e vira block-buffered (pipe), então os `print()` do
+processo pai ficam represados e só saem no fim, enquanto a barra de progresso do
+subprocesso do LatentSync escreve direto. Não indica que o pipeline rodou fora de
+ordem, só que o log ficou fora de ordem.
+
+`_debug_check_repeats` sinalizou repetições de 8-grama acima do normal em dois vídeos
+(video2: 4x; video4: 6x, espalhado quase pelo output inteiro) — potencialmente um sinal
+de loop de repetição do decoder, já visto antes nesta pesquisa. **Verificado
+manualmente por você**: assistindo aos 4 vídeos fine-tuned e comparando com os 4
+baseline, confirmou que são qualitativamente **iguais** aos do modelo não-fine-tuned —
+o vídeo fica mais curto por causa do tamanho da tradução (comportamento já conhecido e
+documentado), mas **não há repetição de palavras real**. Ou seja, os alarmes do
+`_debug_check_repeats` para video2/video4 foram falsos positivos do heurístico de
+n-gramas (provavelmente frases curtas legitimamente repetidas), não degradação do
+decoder. Os dois conjuntos (baseline e fine-tuned) estão confirmados como material
+limpo e comparável para o C5/C6.
+
+**Observação para a dissertação**: os dois conjuntos terem ficado perceptualmente
+parecidos é coerente com o volume de fine-tuning real (101 epochs, mas só 113 updates
+de gradiente no total — Bloco C3) — a perda de validação melhorou (11,3→8,38), mas o
+fine-tuning foi leve o suficiente para não alterar drasticamente o comportamento
+percebido do modelo. Vale registrar isso como uma leitura honesta do que o fine-tuning
+realmente mudou, em vez de assumir uma diferença qualitativa grande que os números de
+loss por si só não garantem.
