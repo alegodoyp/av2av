@@ -301,31 +301,39 @@ repositório**, fora da biblioteca genérica do fairseq.
 
 ---
 
-## C7 — Veredito de escopo
+## C7 — Veredito de escopo (atualizado 2026-07-29: as 4 métricas já foram medidas)
 
-Considerando a defesa em **02/11/2026**, uma GPU compartilhada
-(`CUDA_VISIBLE_DEVICES=1`) num disco a 100%, **e que as 4 inferências fine-tuned ainda
-precisam ser geradas** (confirmado no C5 — os 4 vídeos existentes são todos baseline):
+Considerando a defesa em **02/11/2026**: as quatro métricas prometidas (ASR-BLEU, WER,
+LSE-D, LSE-C) **já foram todas medidas de verdade** nos 8 vídeos (4 baseline + 4
+fine-tuned) durante esta sessão. Não sobrou nada bloqueado por escopo/infraestrutura —
+o que resta é escrever a discussão dos resultados.
 
-| Métrica | Veredito | Justificativa |
+| Métrica | Status | Resultado |
 |---|---|---|
-| **ASR-BLEU** | **Viável no prazo** | Só falta instalar 2-3 pacotes (download-bound, não compute-bound) e decidir a pseudo-referência. ~109s de áudio total, GPU real necessária é mínima. |
-| **WER** | **Viável, reaproveitando o ASR-BLEU** | Mesma transcrição do ASR-BLEU já dá o WER contra a mesma pseudo-referência (via `jiwer`, pacote leve, não confirmado instalado mas trivial de instalar). Vem "de graça" depois do C5. |
-| **LSE-D / LSE-C** | **Vale tentar, com prazo curto e um plano B pronto** | Rede confirmada OK (era o maior risco); resta um repositório de terceiros pouco mantido, ambiente conda possivelmente incompatível, e uma segunda dependência de pesos (S3FD) ainda não confirmada. Nenhum desses é necessariamente bloqueante, mas nenhum é garantido rápido. |
+| **ASR-BLEU** | **Medido** (C5) | Corpus BLEU: baseline=25,93, fine-tuned=23,69 — baseline vence nos 4 vídeos, sem exceção. |
+| **WER** | **Medido** (C5), "de graça" junto com o ASR-BLEU | Baseline vence (ou empata) nos 4 vídeos também. |
+| **LSE-D / LSE-C** | **Medido** (C6) — nem precisou do plano B | Médias: LSE-D baseline=8,639/fine-tuned=8,551, LSE-C baseline=5,486/fine-tuned=5,682 — fine-tuned vence por margem pequena em 3 de 4 vídeos. |
 
-**Recomendação direta**: reporte ASR-BLEU e WER como resultados quantitativos reais no
-capítulo de Validação Quantitativa (ambos alcançáveis com o tempo restante, e agora
-mais baratos ainda com `sacrebleu` já instalado). Para LSE-D/LSE-C, dado que a rede não
-é mais obstáculo, vale **uma tentativa com prazo fixo** (sugiro no máximo meio dia de
-trabalho): clonar `syncnet_python`, rodar `download_model.sh`, e ver imediatamente se
-`detectors/S3FD` resolve sozinho ou exige um segundo download manual. Se em meio dia
-não estiver rodando ponta a ponta, corte as perdas e vá para o plano B: declare
-explicitamente no capítulo de **Ameaças à Validade** que a sincronia labial fina não
-foi avaliada quantitativamente por restrição de tempo (não mais de infraestrutura, já
-que a rede funciona — seja específico sobre qual foi a razão real), e ofereça a
-métrica substituta (diferença de duração áudio-original-vs-gerado) como um proxy
-parcial, deixando claro no texto que é isso — um proxy, não uma medição de sincronia
-labial.
+O que parecia o item mais arriscado do bloco inteiro (LSE-D/LSE-C, repositório de
+terceiros antigo) na prática resolveu rápido: ambiente dedicado, pesos do SyncNet E do
+S3FD baixados juntos pelo próprio `download_model.sh` (a incerteza sobre uma segunda
+dependência de pesos, que eu havia marcado como risco real, não se confirmou), e os 8
+vídeos rodados em poucos minutos de GPU.
+
+**Recomendação direta para a escrita**: reporte as quatro métricas como resultados
+quantitativos reais no capítulo de Validação Quantitativa — não há mais nada para
+declarar como "fora do escopo" no capítulo de Ameaças à Validade quanto a
+*disponibilidade* dessas métricas. O que precisa ir para Ameaças à Validade são as
+limitações de **método**, não de escopo: (a) a pseudo-referência do ASR-BLEU/WER
+(Whisper + NLLB, não tradução humana) — válida para a comparação relativa
+baseline-vs-fine-tuned, não para valores absolutos de qualidade; (b) o corpus é de
+apenas 4 vídeos curtos, então nenhuma das quatro métricas tem poder estatístico para
+generalizar além desta amostra; (c) o achado central e um pouco desconfortável —
+**o fine-tuning piorou a tradução (BLEU/WER) e não teve efeito consistente na
+sincronia labial (LSE-D/LSE-C, favorável em 3 de 4 vídeos mas não unânime)** — deve ser
+reportado como está, não suavizado, com a explicação plausível já registrada acima
+(fine-tuning muito leve: 101 epochs mas só 113 updates de gradiente, sobre um dataset
+minúsculo e auto-destilado).
 
 ---
 
@@ -360,3 +368,98 @@ fine-tuning foi leve o suficiente para não alterar drasticamente o comportament
 percebido do modelo. Vale registrar isso como uma leitura honesta do que o fine-tuning
 realmente mudou, em vez de assumir uma diferença qualitativa grande que os números de
 loss por si só não garantem.
+
+---
+
+## Resultado do C5 — ASR-BLEU/WER (2026-07-29, `scripts/asr_bleu_eval.py`)
+
+Rodou sem erro nos 4 vídeos (Whisper `small` + `facebook/nllb-200-distilled-600M` como
+pseudo-referência PT→EN — trocado do `Helsinki-NLP/opus-mt-pt-en` original, que
+retornou 401/repositório-não-encontrado num teste sem nenhuma credencial da VM
+envolvida, ou seja, o repositório em si está inacessível agora, não é problema de
+token). Saída completa em `asr_bleu_run.log`; dados estruturados em
+`asr_bleu_results.json` (puxar da VM se quiser as transcrições completas por vídeo).
+
+| vídeo | BLEU baseline | BLEU fine-tuned | WER baseline | WER fine-tuned |
+|---|---|---|---|---|
+| video1 | 50,97 | 49,40 | 0,500 | 0,500 |
+| video2 | 23,28 | 21,36 | 0,618 | 0,662 |
+| video3 | 8,67 | 7,12 | 0,805 | 0,829 |
+| video4 | 23,44 | 19,73 | 0,742 | 0,790 |
+| **corpus BLEU** | **25,93** | **23,69** | — | — |
+
+**Achado central, e precisa ser reportado como está, não suavizado**: o baseline
+supera o fine-tuned em BLEU e WER nos 4 vídeos, sem exceção (empata em WER só no
+video1). Ou seja, pela métrica de tradução, **o fine-tuning não melhorou a qualidade
+da tradução** — pelo contrário, piorou levemente. Isso contrasta com a métrica de
+treino (perda de validação caiu de 11,3 para 8,38, Bloco C3) e é exatamente o tipo de
+discrepância entre "métrica de treino melhorou" e "métrica de tarefa final não
+melhorou" que vale um parágrafo próprio na dissertação — plausivelmente explicado pelo
+volume de fine-tuning ser mínimo (113 updates) sobre um dataset minúsculo e
+auto-destilado (Bloco E, E8), o que pode recalibrar a perda de validação sem produzir
+uma melhora real e generalizável na tradução.
+
+Duas ressalvas que contextualizam o achado sem enfraquecê-lo:
+- As transcrições de baseline e fine-tuned são, na maioria dos vídeos, quase idênticas
+  palavra por palavra (video2/video4 diferem em 1-2 palavras apenas) — o efeito é
+  real e consistente nas 4 amostras, mas pequeno em magnitude absoluta.
+- video3 (um poema de Mário Quintana) tem BLEU baixo nos dois modelos (8,67/7,12) —
+  "passarinhos" virou "pathogens" e "Mário Quintana" virou "Mario Contana" em ambas as
+  versões. É uma fraqueza do pipeline com vocabulário raro/nomes próprios, não algo
+  específico do fine-tuning.
+- **Limitação de método a declarar no texto**: a "referência" usada é uma
+  pseudo-referência (Whisper transcrevendo o PT original + NLLB traduzindo), não uma
+  tradução humana — erros do próprio ASR/MT na pseudo-referência se propagam para o
+  BLEU/WER medido de ambos os modelos igualmente, então a COMPARAÇÃO relativa
+  baseline-vs-fine-tuned continua válida, mas os valores absolutos de BLEU/WER não
+  devem ser lidos como qualidade de tradução "real".
+
+---
+
+## Resultado do C6 — LSE-D/LSE-C (2026-07-29, `syncnet_python`)
+
+Ambiente `syncnet` dedicado (conda, Python 3.10, torch 2.5.1+cu118 -- trocado do
+cu124 do `environment.yml` upstream por já ser o build comprovado nesta VM). Pesos do
+SyncNet (`data/syncnet_v2.model`) e do detector de face S3FD
+(`detectors/s3fd/weights/sfd_face.pth`, ~85.7MB) baixados via `download_model.sh` sem
+precisar de segundo download manual -- a incerteza sobre o S3FD registrada mais acima
+neste relatório (e no Bloco original de escopo) não se confirmou na prática.
+
+`run_syncnet.py` não imprime "LSE-D"/"LSE-C" (esses nomes vêm de papers posteriores,
+não do repositório original) -- confirmei em `SyncNetInstance.evaluate()` que **"Min
+dist" é exatamente o LSE-D** (menor é melhor) e **"Confidence" é exatamente o LSE-C**
+(maior é melhor), mesma matemática, nome diferente.
+
+Rodado nos 8 vídeos (`results/video{1,2,3,4}_pt2en.mp4` e
+`..._pt2en_finetuned.mp4`), `run_pipeline.py` → `run_syncnet.py` cada um:
+
+| vídeo | LSE-D baseline | LSE-D fine-tuned | LSE-C baseline | LSE-C fine-tuned | AV offset (ambos) |
+|---|---|---|---|---|---|
+| video1 | 10,371 | 10,148 | 3,803 | 3,999 | 0 |
+| video2 | 8,019 | 7,705 | 6,567 | 6,948 | 0 |
+| video3 | 8,477 | 8,346 | 5,193 | 5,602 | 0 |
+| video4 | 7,690 | 8,005 | 6,380 | 6,178 | 0 |
+| **média** | **8,639** | **8,551** | **5,486** | **5,682** | — |
+
+`AV offset=0` nos 8 -- nenhum vídeo, de nenhum dos dois modelos, mostrou deslocamento
+sistemático de sincronia detectado pelo SyncNet.
+
+**Padrão, e como ele contrasta com o C5**: em 3 dos 4 vídeos (video1/2/3) o fine-tuned
+tem LSE-D menor (melhor) e LSE-C maior (melhor) que o baseline; só video4 inverte. Na
+média, fine-tuned vence nos dois, mas por margem pequena e **sem a unanimidade que o
+BLEU/WER mostraram** (esses foram 4-de-4 a favor do baseline). Isso é coerente com a
+arquitetura: quem determina a sincronia é o `unit2av`/LatentSync, que é **idêntico**
+nos dois casos (mesmo checkpoint, mesmo renderer) -- a única forma de o fine-tuning
+afetar o LSE-D/LSE-C é indiretamente, através de pequenas diferenças de timing/conteúdo
+na tradução que muda o áudio de entrada. Não há motivo estrutural para o fine-tuning
+alterar sincronia diretamente, e os números batem com isso: efeito pequeno,
+direcionalmente positivo mas não unânime.
+
+**Contexto de literatura (recordado de memória geral, não verificado nesta sessão --
+tratar como referência aproximada, não fato conferido)**: valores de LSE-D/LSE-C
+tipicamente citados em papers de lip-sync colocam vídeo real (ground truth) em torno de
+LSE-D~6-7/LSE-C~7-8, e métodos dedicados como Wav2Lip próximos disso. Os valores medidos
+aqui (LSE-D~7,7-10,4, LSE-C~3,8-7,0) ficam num patamar visivelmente abaixo do
+estado-da-arte em lip-sync dedicado, mas longe de "sem sincronia" (que apareceria como
+confiança próxima de zero ou negativa) -- consistente com um pipeline cujo foco
+principal é tradução audiovisual completa, não sincronia labial isolada.

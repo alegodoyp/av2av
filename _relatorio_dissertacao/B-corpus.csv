@@ -1,0 +1,6 @@
+nome_base_do_clipe,ocorrencias_em_train,ocorrencias_em_valid,aparece_em_ambos_os_splits
+cropped_Monologo_Justica.mp4,4,2,SIM
+cropped_Disturbios_De_Um_Monologo_Interior_-_Jefferson_Cavalcante.mp4,4,0,NAO
+cropped_Wandinha_-_Monologo.mp4,3,0,NAO
+cropped_Monologo_Natal_2022_-_Rodrigo_Kenji_Concurso_Five.mp4,3,3,SIM
+cropped_Andre_Araujo_-_Monologo_do_filme_O_Pai_O.mp4,4,0,NAO
